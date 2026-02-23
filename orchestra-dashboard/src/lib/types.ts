@@ -8,6 +8,13 @@ export type FindingType = 'security' | 'quality' | 'performance' | 'compliance';
 export type FindingStatus = 'open' | 'resolved' | 'dismissed';
 export type WorkflowType = 'full-pipeline' | 'code-review' | 'security-audit' | 'feature-eval' | 'quick-fix';
 
+export type ProjectSourceType = 'local' | 'git' | 'new';
+
+export interface ProjectSource {
+  type: ProjectSourceType;
+  path: string;
+}
+
 export interface PipelineStep {
   phase: PipelinePhase;
   status: PhaseStatus;
@@ -35,6 +42,8 @@ export interface Execution {
   status: ExecutionStatus;
   model: string;
   target: string;
+  projectSource?: ProjectSource;
+  resolvedProjectPath?: string;
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
@@ -121,6 +130,6 @@ export interface OrchestraState {
 }
 
 export interface OrchestraActions {
-  startExecution: (workflow: WorkflowType, task: string, model: string, target: string) => Promise<string>;
+  startExecution: (workflow: WorkflowType, task: string, model: string, target: string, projectSource: ProjectSource) => Promise<string>;
   refetch: () => void;
 }

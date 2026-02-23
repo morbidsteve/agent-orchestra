@@ -6,8 +6,8 @@ import { Button } from '../components/ui/Button.tsx';
 import { TextArea } from '../components/ui/TextArea.tsx';
 import { Input } from '../components/ui/Input.tsx';
 import { cn } from '../lib/cn.ts';
-import type { WorkflowType } from '../lib/types.ts';
-import { GitBranch, FileSearch, ShieldCheck, Lightbulb, Zap, Play, Clock, Cpu, Loader2 } from 'lucide-react';
+import type { WorkflowType, ProjectSourceType } from '../lib/types.ts';
+import { GitBranch, FileSearch, ShieldCheck, Lightbulb, Zap, Play, Clock, Cpu, Loader2, FolderOpen, Globe, Plus } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 const workflowIcons: Record<string, LucideIcon> = {
@@ -26,15 +26,19 @@ export function NewExecutionPage() {
   const [selectedModel, setSelectedModel] = useState('claude-opus-4-6');
   const [target, setTarget] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sourceType, setSourceType] = useState<ProjectSourceType>('local');
+  const [sourcePath, setSourcePath] = useState('');
 
   const handleStart = async () => {
     if (!task.trim() || loading) return;
     setLoading(true);
     try {
-      const id = await startExecution(selectedWorkflow, task.trim(), selectedModel, target.trim());
+      const id = await startExecution(
+        selectedWorkflow, task.trim(), selectedModel, target.trim(),
+        { type: sourceType, path: sourcePath.trim() },
+      );
       navigate(`/executions/${id}`);
     } catch {
-      // Fallback: still allow interaction in mock mode
       setLoading(false);
     }
   };
@@ -92,6 +96,64 @@ export function NewExecutionPage() {
           placeholder="Describe the task for the agents..."
           rows={4}
         />
+      </div>
+
+      {/* Project Source */}
+      <div>
+        <h2 className="text-sm font-semibold text-gray-200 mb-3">Project Source</h2>
+        <div className="grid grid-cols-3 gap-3">
+          {([
+            { type: 'local' as const, label: 'Local Path', icon: FolderOpen },
+            { type: 'git' as const, label: 'Git Repository', icon: Globe },
+            { type: 'new' as const, label: 'New Project', icon: Plus },
+          ]).map(({ type, label, icon: Icon }) => {
+            const isSelected = sourceType === type;
+            return (
+              <button
+                key={type}
+                onClick={() => {
+                  setSourceType(type);
+                  if (type === 'new') setSourcePath('');
+                }}
+                className={cn(
+                  'text-left rounded-xl border p-4 transition-colors',
+                  isSelected
+                    ? 'border-accent-blue bg-accent-blue/5'
+                    : 'border-surface-600 bg-surface-800 hover:border-surface-500',
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon className={cn('h-4 w-4', isSelected ? 'text-accent-blue' : 'text-gray-400')} />
+                  <span className={cn('text-sm font-medium', isSelected ? 'text-accent-blue' : 'text-gray-200')}>
+                    {label}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        {sourceType === 'local' && (
+          <div className="mt-3">
+            <Input
+              id="source-path"
+              label=""
+              value={sourcePath}
+              onChange={(e) => setSourcePath(e.target.value)}
+              placeholder="/home/user/my-project"
+            />
+          </div>
+        )}
+        {sourceType === 'git' && (
+          <div className="mt-3">
+            <Input
+              id="source-path"
+              label=""
+              value={sourcePath}
+              onChange={(e) => setSourcePath(e.target.value)}
+              placeholder="https://github.com/user/repo.git"
+            />
+          </div>
+        )}
       </div>
 
       {/* Model Picker */}

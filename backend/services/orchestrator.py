@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import os
 import shutil
 import sys
 import uuid
@@ -223,15 +224,28 @@ async def _try_real_orchestrator(
         return False
 
     try:
-        process = await asyncio.create_subprocess_exec(
+        cmd = [
             sys.executable,
             "/workspace/orchestrator.py",
             execution["task"],
             "--workflow", execution["workflow"],
             "--model", execution["model"],
+        ]
+
+        cwd = "/workspace"
+        resolved_path = execution.get("resolvedProjectPath", "")
+        if resolved_path and os.path.isdir(resolved_path):
+            cmd.extend(["--repo", resolved_path])
+            cwd = resolved_path
+
+        if execution.get("target"):
+            cmd.extend(["--target", execution["target"]])
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd="/workspace",
+            cwd=cwd,
         )
     except (FileNotFoundError, OSError):
         return False

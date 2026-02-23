@@ -35,6 +35,12 @@ def _to_camel(name: str) -> str:
     return parts[0] + "".join(word.capitalize() for word in parts[1:])
 
 
+class ProjectSource(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=_to_camel)
+    type: Literal["local", "git", "new"]
+    path: str = ""
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Domain models
 # ──────────────────────────────────────────────────────────────────────────────
@@ -82,6 +88,8 @@ class Execution(BaseModel):
     status: ExecutionStatus = "queued"
     model: str = "sonnet"
     target: str = ""
+    project_source: ProjectSource | None = None
+    resolved_project_path: str = ""
     created_at: str
     started_at: str | None = None
     completed_at: str | None = None
@@ -144,6 +152,7 @@ class CreateExecutionRequest(BaseModel):
     task: str = Field(max_length=10000)
     model: Literal["sonnet", "opus", "haiku"] = "sonnet"
     target: str = Field(default="", max_length=500)
+    project_source: ProjectSource | None = None
 
 
 class WebSocketMessage(BaseModel):

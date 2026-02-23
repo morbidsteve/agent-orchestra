@@ -90,6 +90,7 @@ describe('api', () => {
         task: 'Build feature',
         model: 'claude-opus-4-6',
         target: './src',
+        projectSource: { type: 'local' as const, path: '/tmp/project' },
       };
       const mockResponse = { id: 'exec-new', ...params, status: 'queued' };
       mockFetchSuccess(mockResponse);
@@ -113,6 +114,7 @@ describe('api', () => {
           task: '',
           model: '',
           target: '',
+          projectSource: { type: 'local', path: '' },
         }),
       ).rejects.toThrow('API error: 422 Unprocessable Entity');
     });
