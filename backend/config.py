@@ -4,7 +4,7 @@ import os
 
 
 class Settings:
-    HOST: str = "127.0.0.1"
+    HOST: str = os.environ.get("BACKEND_HOST", "127.0.0.1")
     PORT: int = 8000
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:5173",
