@@ -4,7 +4,7 @@ import type { OrchestraState, OrchestraActions, WorkflowType, ProjectSource, Aut
 import { mockState } from '../lib/mockData';
 import { WORKFLOWS } from '../lib/constants';
 import { useApiData } from '../hooks/useApiData';
-import { fetchExecutions, fetchAgents, fetchFindings, fetchAuthStatus, createExecution as apiCreateExecution } from '../lib/api';
+import { fetchExecutions, fetchAgents, fetchFindings, fetchAuthStatus, createExecution as apiCreateExecution, createAgent as apiCreateAgent, deleteAgent as apiDeleteAgent } from '../lib/api';
 
 interface OrchestraContextValue extends OrchestraState, OrchestraActions {}
 
@@ -66,6 +66,18 @@ export function OrchestraProvider({ children, initialState }: { children: ReactN
     return id;
   }, [isLive, executions.length, refetch]);
 
+  const createAgent = useCallback(async (params: {
+    name: string; description: string; capabilities: string[]; tools: string[]; color: string; icon: string;
+  }): Promise<void> => {
+    await apiCreateAgent(params);
+    refetchAgents();
+  }, [refetchAgents]);
+
+  const deleteAgent = useCallback(async (role: string): Promise<void> => {
+    await apiDeleteAgent(role);
+    refetchAgents();
+  }, [refetchAgents]);
+
   const contextValue = useMemo<OrchestraContextValue>(() => ({
     executions,
     agents,
@@ -74,8 +86,10 @@ export function OrchestraProvider({ children, initialState }: { children: ReactN
     authStatus,
     isLive,
     startExecution,
+    createAgent,
+    deleteAgent,
     refetch,
-  }), [executions, agents, findings, authStatus, isLive, startExecution, refetch]);
+  }), [executions, agents, findings, authStatus, isLive, startExecution, createAgent, deleteAgent, refetch]);
 
   return (
     <OrchestraContext.Provider value={contextValue}>

@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 ExecutionStatus = Literal["running", "completed", "failed", "queued"]
 PipelinePhase = Literal["plan", "develop", "test", "security", "report"]
 PhaseStatus = Literal["pending", "running", "completed", "failed", "skipped"]
-AgentRole = Literal["developer", "developer-2", "tester", "devsecops", "business-dev"]
+AgentRole = str
 AgentStatus = Literal["idle", "busy", "offline"]
 FindingSeverity = Literal["critical", "high", "medium", "low", "info"]
 FindingType = Literal["security", "quality", "performance", "compliance"]
@@ -112,6 +112,7 @@ class AgentInfo(BaseModel):
     tools: list[str] = Field(default_factory=list)
     color: str = ""
     icon: str = ""
+    is_custom: bool = False
     current_execution: str | None = None
     completed_tasks: int = 0
     success_rate: float = 100.0
@@ -140,6 +141,20 @@ class Finding(BaseModel):
 # ──────────────────────────────────────────────────────────────────────────────
 # Request / Response models
 # ──────────────────────────────────────────────────────────────────────────────
+
+
+class CreateAgentRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=_to_camel,
+    )
+
+    name: str = Field(max_length=100)
+    description: str = Field(default="", max_length=500)
+    capabilities: list[str] = Field(default_factory=list, max_length=20)
+    tools: list[str] = Field(default_factory=list, max_length=20)
+    color: str = Field(default="#6b7280", pattern=r"^#[0-9a-fA-F]{6}$")
+    icon: str = "Bot"
 
 
 class CreateExecutionRequest(BaseModel):
