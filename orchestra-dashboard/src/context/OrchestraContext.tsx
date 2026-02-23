@@ -1,10 +1,10 @@
 import { createContext, useContext, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import type { OrchestraState, OrchestraActions, WorkflowType } from '../lib/types';
+import type { OrchestraState, OrchestraActions, WorkflowType, AuthStatus } from '../lib/types';
 import { mockState } from '../lib/mockData';
 import { WORKFLOWS } from '../lib/constants';
 import { useApiData } from '../hooks/useApiData';
-import { fetchExecutions, fetchAgents, fetchFindings, createExecution as apiCreateExecution } from '../lib/api';
+import { fetchExecutions, fetchAgents, fetchFindings, fetchAuthStatus, createExecution as apiCreateExecution } from '../lib/api';
 
 interface OrchestraContextValue extends OrchestraState, OrchestraActions {}
 
@@ -21,6 +21,7 @@ export function OrchestraProvider({ children, initialState }: { children: ReactN
   const executionsFetcher = useCallback(() => fetchExecutions(), []);
   const agentsFetcher = useCallback(() => fetchAgents(), []);
   const findingsFetcher = useCallback(() => fetchFindings(), []);
+  const authStatusFetcher = useCallback(() => fetchAuthStatus(), []);
 
   const {
     data: executions,
@@ -37,6 +38,10 @@ export function OrchestraProvider({ children, initialState }: { children: ReactN
     data: findings,
     refetch: refetchFindings,
   } = useApiData(findingsFetcher, fallback.findings, useApi ? 10000 : undefined);
+
+  const {
+    data: authStatus,
+  } = useApiData<AuthStatus | null>(authStatusFetcher, fallback.authStatus, useApi ? 30000 : undefined);
 
   const isLive = useApi && executionsLive;
 
@@ -66,10 +71,11 @@ export function OrchestraProvider({ children, initialState }: { children: ReactN
     agents,
     findings,
     workflows: WORKFLOWS,
+    authStatus,
     isLive,
     startExecution,
     refetch,
-  }), [executions, agents, findings, isLive, startExecution, refetch]);
+  }), [executions, agents, findings, authStatus, isLive, startExecution, refetch]);
 
   return (
     <OrchestraContext.Provider value={contextValue}>

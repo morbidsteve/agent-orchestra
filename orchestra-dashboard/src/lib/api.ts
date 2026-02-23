@@ -1,4 +1,4 @@
-import type { Execution, AgentInfo, Finding, WorkflowType } from './types.ts';
+import type { Execution, AgentInfo, Finding, WorkflowType, AuthStatus, GitHubLoginResponse, GitHubLoginStatus } from './types.ts';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -53,4 +53,20 @@ export function fetchFindings(params?: {
 
 export function checkHealth(): Promise<{ status: string }> {
   return apiFetch<{ status: string }>('/api/health');
+}
+
+export function fetchAuthStatus(): Promise<AuthStatus> {
+  return apiFetch<AuthStatus>('/api/auth/status');
+}
+
+export function startGithubLogin(): Promise<GitHubLoginResponse> {
+  return apiFetch<GitHubLoginResponse>('/api/auth/github/login', { method: 'POST' });
+}
+
+export function fetchGithubLoginStatus(): Promise<GitHubLoginStatus> {
+  return apiFetch<GitHubLoginStatus>('/api/auth/github/status');
+}
+
+export function githubLogout(): Promise<{ success: boolean }> {
+  return apiFetch<{ success: boolean }>('/api/auth/github/logout', { method: 'POST' });
 }

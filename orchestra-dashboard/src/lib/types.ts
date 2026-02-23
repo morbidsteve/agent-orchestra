@@ -81,11 +81,42 @@ export interface Workflow {
   estimatedDuration: string;
 }
 
+export interface GitHubAuthInfo {
+  authenticated: boolean;
+  username: string | null;
+  error?: string;
+}
+
+export interface ClaudeAuthInfo {
+  authenticated: boolean;
+  status?: string;
+  error?: string;
+}
+
+export interface AuthStatus {
+  github: GitHubAuthInfo;
+  claude: ClaudeAuthInfo;
+}
+
+export interface GitHubLoginResponse {
+  deviceCode: string | null;
+  verificationUrl: string | null;
+  status: string;
+}
+
+export interface GitHubLoginStatus {
+  status: string;
+  deviceCode?: string | null;
+  username?: string | null;
+  error?: string | null;
+}
+
 export interface OrchestraState {
   executions: Execution[];
   agents: AgentInfo[];
   findings: Finding[];
   workflows: Workflow[];
+  authStatus: AuthStatus | null;
   isLive: boolean;
 }
 
