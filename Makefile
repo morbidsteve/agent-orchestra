@@ -1,4 +1,7 @@
-.PHONY: setup dev test lint build check clean stop
+.PHONY: all setup dev test lint build check clean stop
+
+## all: Install deps + start dev servers (default target)
+all: setup dev
 
 VENV := .venv
 BACKEND := backend
