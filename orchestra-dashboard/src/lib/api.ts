@@ -1,4 +1,4 @@
-import type { Execution, AgentInfo, Finding, WorkflowType, AuthStatus, GitHubLoginResponse, GitHubLoginStatus } from './types.ts';
+import type { Execution, AgentInfo, Finding, WorkflowType, ProjectSource, AuthStatus, GitHubLoginResponse, GitHubLoginStatus } from './types.ts';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -26,6 +26,7 @@ export function createExecution(params: {
   task: string;
   model: string;
   target: string;
+  projectSource: ProjectSource;
 }): Promise<Execution> {
   return apiFetch<Execution>('/api/executions', {
     method: 'POST',

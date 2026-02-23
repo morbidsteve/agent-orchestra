@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import subprocess
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
 from backend import store
+from backend.config import settings
 from backend.models import CreateExecutionRequest
 from backend.services.orchestrator import run_execution
 
@@ -85,6 +88,41 @@ async def create_execution(req: CreateExecutionRequest) -> dict:
         for phase in phases
     ]
 
+    resolved_path = ""
+    project_source_dict = None
+
+    if req.project_source is not None:
+        ps = req.project_source
+        project_source_dict = {"type": ps.type, "path": ps.path}
+
+        if ps.type == "local":
+            abs_path = os.path.abspath(ps.path)
+            if not os.path.isdir(abs_path):
+                raise HTTPException(status_code=422, detail=f"Local path not found: {abs_path}")
+            resolved_path = abs_path
+
+        elif ps.type == "git":
+            repo_name = ps.path.rstrip("/").rsplit("/", 1)[-1]
+            if repo_name.endswith(".git"):
+                repo_name = repo_name[:-4]
+            if not repo_name:
+                raise HTTPException(status_code=422, detail="Invalid git URL")
+            clone_dir = os.path.join(settings.PROJECTS_DIR, f"{exec_id}_{repo_name}")
+            os.makedirs(settings.PROJECTS_DIR, exist_ok=True)
+            try:
+                subprocess.run(
+                    ["git", "clone", "--depth", "1", ps.path, clone_dir],
+                    check=True, capture_output=True, timeout=120,
+                )
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+                raise HTTPException(status_code=422, detail=f"Failed to clone: {exc}")
+            resolved_path = clone_dir
+
+        elif ps.type == "new":
+            new_dir = os.path.join(settings.PROJECTS_DIR, exec_id)
+            os.makedirs(new_dir, exist_ok=True)
+            resolved_path = new_dir
+
     execution: dict = {
         "id": exec_id,
         "workflow": req.workflow,
@@ -92,6 +130,8 @@ async def create_execution(req: CreateExecutionRequest) -> dict:
         "status": "queued",
         "model": req.model,
         "target": req.target,
+        "projectSource": project_source_dict,
+        "resolvedProjectPath": resolved_path,
         "createdAt": now,
         "startedAt": None,
         "completedAt": None,

@@ -2,7 +2,7 @@ import { Badge } from '../../ui/Badge.tsx';
 import { formatExecutionId, formatDate, formatDuration } from '../../../lib/formatters.ts';
 import { cn } from '../../../lib/cn.ts';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Clock, GitBranch, Cpu, FolderOpen } from 'lucide-react';
+import { ArrowLeft, Clock, GitBranch, Cpu, FolderOpen, Globe } from 'lucide-react';
 import type { Execution } from '../../../lib/types.ts';
 
 interface ExecutionHeaderProps {
@@ -47,10 +47,24 @@ export function ExecutionHeader({ execution }: ExecutionHeaderProps) {
           <Cpu className="h-4 w-4" />
           <span>{execution.model}</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <FolderOpen className="h-4 w-4" />
-          <span>{execution.target}</span>
-        </div>
+        {execution.projectSource && (
+          <div className="flex items-center gap-1.5">
+            {execution.projectSource.type === 'git' ? (
+              <Globe className="h-4 w-4" />
+            ) : (
+              <FolderOpen className="h-4 w-4" />
+            )}
+            <span>
+              {execution.resolvedProjectPath || execution.projectSource.path || 'New project'}
+            </span>
+          </div>
+        )}
+        {execution.target && (
+          <div className="flex items-center gap-1.5">
+            <FolderOpen className="h-4 w-4" />
+            <span>{execution.target}</span>
+          </div>
+        )}
         {execution.startedAt && (
           <div className="flex items-center gap-1.5">
             <Clock className="h-4 w-4" />

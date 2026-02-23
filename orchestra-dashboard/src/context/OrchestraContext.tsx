@@ -1,6 +1,6 @@
 import { createContext, useContext, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import type { OrchestraState, OrchestraActions, WorkflowType, AuthStatus } from '../lib/types';
+import type { OrchestraState, OrchestraActions, WorkflowType, ProjectSource, AuthStatus } from '../lib/types';
 import { mockState } from '../lib/mockData';
 import { WORKFLOWS } from '../lib/constants';
 import { useApiData } from '../hooks/useApiData';
@@ -52,11 +52,11 @@ export function OrchestraProvider({ children, initialState }: { children: ReactN
   }, [refetchExecutions, refetchAgents, refetchFindings]);
 
   const startExecution = useCallback(async (
-    workflow: WorkflowType, task: string, model: string, target: string,
+    workflow: WorkflowType, task: string, model: string, target: string, projectSource: ProjectSource,
   ): Promise<string> => {
     if (isLive) {
       // Use real API
-      const execution = await apiCreateExecution({ workflow, task, model, target });
+      const execution = await apiCreateExecution({ workflow, task, model, target, projectSource });
       refetch();
       return execution.id;
     }

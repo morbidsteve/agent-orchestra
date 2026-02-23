@@ -37,4 +37,30 @@ describe('NewExecutionPage', () => {
     await userEvent.type(screen.getByLabelText('Task Description'), 'Fix the login bug');
     expect(screen.getByRole('button', { name: /Start Execution/ })).toBeEnabled();
   });
+
+  it('renders Project Source heading and all 3 options', () => {
+    renderWithProviders(<NewExecutionPage />);
+    expect(screen.getByText('Project Source')).toBeInTheDocument();
+    expect(screen.getByText('Local Path')).toBeInTheDocument();
+    expect(screen.getByText('Git Repository')).toBeInTheDocument();
+    expect(screen.getByText('New Project')).toBeInTheDocument();
+  });
+
+  it('shows local path input by default', () => {
+    renderWithProviders(<NewExecutionPage />);
+    expect(screen.getByPlaceholderText('/home/user/my-project')).toBeInTheDocument();
+  });
+
+  it('shows git URL input when Git Repository clicked', async () => {
+    renderWithProviders(<NewExecutionPage />);
+    await userEvent.click(screen.getByText('Git Repository'));
+    expect(screen.getByPlaceholderText('https://github.com/user/repo.git')).toBeInTheDocument();
+  });
+
+  it('hides path input when New Project clicked', async () => {
+    renderWithProviders(<NewExecutionPage />);
+    await userEvent.click(screen.getByText('New Project'));
+    expect(screen.queryByPlaceholderText('/home/user/my-project')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('https://github.com/user/repo.git')).not.toBeInTheDocument();
+  });
 });

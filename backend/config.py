@@ -1,5 +1,7 @@
 """Application configuration."""
 
+import os
+
 
 class Settings:
     HOST: str = "127.0.0.1"
@@ -10,6 +12,7 @@ class Settings:
     ]
     ORCHESTRATOR_PATH: str = "/workspace/orchestrator.py"
     DEFAULT_MODEL: str = "sonnet"
+    PROJECTS_DIR: str = os.path.expanduser("~/orchestra-projects")
 
 
 settings = Settings()
