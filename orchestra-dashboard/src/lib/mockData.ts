@@ -596,5 +596,6 @@ export const mockState: OrchestraState = {
   agents: mockAgents,
   findings: mockFindings,
   workflows: mockWorkflows,
+  authStatus: null,
   isLive: false,
 };

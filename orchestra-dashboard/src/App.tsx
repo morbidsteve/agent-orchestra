@@ -7,6 +7,7 @@ import {
   AgentsPage,
   FindingsPage,
   NewExecutionPage,
+  SettingsPage,
 } from './pages/index.ts';
 
 export function App() {
@@ -20,6 +21,7 @@ export function App() {
             <Route path="/agents" element={<AgentsPage />} />
             <Route path="/findings" element={<FindingsPage />} />
             <Route path="/new" element={<NewExecutionPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>
       </OrchestraProvider>
