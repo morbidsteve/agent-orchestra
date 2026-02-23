@@ -29,7 +29,7 @@ $(VENV)/bin/activate:
 
 ## dev: Start backend (background) + frontend (foreground)
 dev: stop
-	cd $(BACKEND) && ../$(VENV)/bin/python run.py & echo $$! > $(PID_FILE)
+	$(VENV)/bin/python -m backend.run & echo $$! > $(PID_FILE)
 	@echo "Backend starting on http://localhost:8000"
 	@echo "Frontend starting on http://localhost:5173"
 	cd $(FRONTEND) && npm run dev; $(MAKE) stop

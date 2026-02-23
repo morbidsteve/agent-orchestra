@@ -36,4 +36,4 @@ ENV BACKEND_HOST=0.0.0.0
 EXPOSE 8000 5173
 
 # Start backend + frontend (Vite with --host to bind 0.0.0.0)
-CMD bash -c 'python backend/run.py & cd orchestra-dashboard && npx vite --host 0.0.0.0'
+CMD bash -c 'python -m backend.run & cd orchestra-dashboard && npx vite --host 0.0.0.0'
