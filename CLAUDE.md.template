@@ -1,0 +1,88 @@
+# Project Context — CLAUDE.md Template
+#
+# Copy this file to the root of your repository as CLAUDE.md.
+# All agents will read this file to understand your project's conventions.
+# Customize each section for your specific project.
+
+## Project Overview
+<!-- Brief description of what this project does -->
+[Your project name] is a [type of software] that [what it does].
+
+## Tech Stack
+<!-- List your technologies so agents know what they're working with -->
+- **Backend**: [e.g., Python 3.11 / FastAPI / SQLAlchemy]
+- **Frontend**: [e.g., React 18 / TypeScript / Tailwind CSS]
+- **Database**: [e.g., PostgreSQL 15 / Redis for caching]
+- **Infrastructure**: [e.g., Docker / Kubernetes / AWS]
+- **CI/CD**: [e.g., GitHub Actions]
+
+## Project Structure
+<!-- Help agents navigate the codebase -->
+```
+src/
+├── api/          # REST API endpoints
+├── core/         # Business logic
+├── models/       # Data models / ORM
+├── services/     # External service integrations
+└── utils/        # Shared utilities
+tests/
+├── unit/         # Unit tests
+├── integration/  # Integration tests
+└── fixtures/     # Test data
+```
+
+## Code Standards
+<!-- What conventions do you follow? -->
+- **Style**: [e.g., Black for Python, Prettier for TS/JS]
+- **Linting**: [e.g., ruff, eslint]
+- **Type checking**: [e.g., mypy strict mode, TypeScript strict]
+- **Naming**: [e.g., snake_case for Python, camelCase for TS]
+- **Imports**: [e.g., isort with project grouping]
+
+## Testing Requirements
+<!-- What's expected for test coverage? -->
+- Minimum coverage: [e.g., 80%]
+- Framework: [e.g., pytest / jest]
+- Run tests: `[e.g., pytest -v --cov]`
+- All PRs must pass CI before merge
+
+## Security Requirements
+<!-- What security standards apply? -->
+- No hardcoded secrets — use environment variables
+- All API endpoints require authentication unless explicitly public
+- PII must be encrypted at rest
+- Dependencies scanned weekly for CVEs
+- [Add any compliance requirements: SOC2, HIPAA, GDPR, etc.]
+
+## Development Workflow
+<!-- How does code go from idea to production? -->
+1. Branch from `main` with pattern: `feature/`, `fix/`, `chore/`
+2. Write code + tests
+3. Open PR — agent review runs automatically
+4. Address review feedback
+5. Merge when approved + CI green
+
+## Common Commands
+```bash
+# Development
+[e.g., make dev        # Start dev server]
+[e.g., make test       # Run test suite]
+[e.g., make lint       # Run linters]
+[e.g., make build      # Build for production]
+
+# Database
+[e.g., make migrate    # Run migrations]
+[e.g., make seed       # Seed dev data]
+```
+
+## Known Limitations / Tech Debt
+<!-- What should agents be aware of? -->
+- [e.g., Auth module is legacy — don't refactor without discussion]
+- [e.g., Search is basic string matching, planned Elasticsearch migration]
+
+## Agent-Specific Notes
+<!-- Special instructions for the agent team -->
+- **Developers**: Follow existing patterns. Don't introduce new dependencies without justification.
+- **Tester**: Focus on edge cases around [specific module]. It has historically been buggy.
+- **DevSecOps**: We're targeting [SOC2/HIPAA/etc.]. Pay special attention to [data handling/auth/etc.].
+- **Business Dev**: Our target market is [market]. Key competitors are [competitors].

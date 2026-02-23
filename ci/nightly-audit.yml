@@ -1,0 +1,91 @@
+# .github/workflows/nightly-audit.yml
+#
+# Scheduled nightly security audit and test coverage analysis.
+# Runs overnight and posts results as a GitHub issue if problems are found.
+#
+# Setup:
+#   1. Copy to .github/workflows/nightly-audit.yml
+#   2. Add ANTHROPIC_API_KEY as a repository secret
+
+name: "Agent Orchestra: Nightly Audit"
+
+on:
+  schedule:
+    # Run at 2am UTC every weekday
+    - cron: "0 2 * * 1-5"
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  security-audit:
+    name: "Nightly Security Audit"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install claude-agent-sdk
+
+      - name: Run full security audit
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python orchestrator.py \
+            --workflow=security-audit \
+            --repo=. \
+            --model=sonnet \
+            "Perform a comprehensive security audit. Check for new CVEs in
+            dependencies, scan for secrets, review recent changes for security
+            implications." \
+            > audit-results.txt 2>&1
+
+      - name: Run test coverage analysis
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python orchestrator.py \
+            --workflow=test-suite \
+            --repo=. \
+            --model=sonnet \
+            "Analyze current test coverage. Identify critical untested paths.
+            Do NOT write new tests — just report gaps." \
+            > coverage-results.txt 2>&1
+
+      - name: Create issue if findings exist
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            let audit = '';
+            let coverage = '';
+
+            try { audit = fs.readFileSync('audit-results.txt', 'utf8'); } catch(e) {}
+            try { coverage = fs.readFileSync('coverage-results.txt', 'utf8'); } catch(e) {}
+
+            const hasCritical = audit.includes('[CRITICAL]') || audit.includes('[HIGH]');
+            const hasTestGaps = coverage.includes('CRITICAL') || coverage.includes('untested');
+
+            if (hasCritical || hasTestGaps) {
+              const date = new Date().toISOString().split('T')[0];
+
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `[Nightly Audit] Findings — ${date}`,
+                body: `## Security Audit Results\n\n${audit.substring(0, 30000)}\n\n---\n\n## Test Coverage Analysis\n\n${coverage.substring(0, 30000)}`,
+                labels: ['security', 'automated-audit']
+              });
+            }

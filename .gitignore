@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build output
+orchestra-dashboard/dist/
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Dev containers
+.devcontainer/
+
+# Claude internal
+.claude/
+
+# Test/coverage
+coverage/
+.vitest/

@@ -1,0 +1,129 @@
+# .github/workflows/pr-review.yml
+#
+# Automated multi-agent code review on pull requests.
+# Runs developer review, test validation, and security scan in parallel,
+# then posts a unified review comment on the PR.
+#
+# Setup:
+#   1. Copy this file to .github/workflows/pr-review.yml in your repo
+#   2. Add ANTHROPIC_API_KEY as a repository secret
+#   3. Optionally configure which workflows to run via the matrix
+
+name: "Agent Orchestra: PR Review"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # Uncomment to limit to specific branches:
+    # branches: [main, develop]
+
+# Cancel in-progress runs for the same PR
+concurrency:
+  group: agent-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write  # To post review comments
+
+jobs:
+  agent-review:
+    name: "Multi-Agent Code Review"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for diff analysis
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Agent Orchestra
+        run: |
+          pip install claude-agent-sdk
+          # If your project has its own deps needed for testing:
+          # pip install -r requirements.txt
+
+      - name: Run code review agents
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Get the diff for context
+          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD)
+
+          python orchestrator.py \
+            --workflow=code-review \
+            --target="${{ github.head_ref }}" \
+            --repo=. \
+            --model=sonnet \
+            "Review the changes in this PR. The diff from ${{ github.base_ref }}:
+
+            $DIFF" \
+            > review-output.txt 2>&1
+
+      - name: Post review comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let review = 'Review output not available.';
+            try {
+              review = fs.readFileSync('review-output.txt', 'utf8');
+            } catch (e) {
+              review = 'Agent review failed to produce output.';
+            }
+
+            // Truncate if too long for a GH comment
+            if (review.length > 60000) {
+              review = review.substring(0, 60000) + '\n\n... (truncated)';
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## 🤖 Agent Orchestra Review\n\n${review}`
+            });
+
+
+  security-scan:
+    name: "Security Scan"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install claude-agent-sdk
+
+      - name: Run security audit
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python orchestrator.py \
+            --workflow=security-audit \
+            --repo=. \
+            --model=sonnet \
+            > security-output.txt 2>&1
+
+      - name: Check for critical findings
+        run: |
+          if grep -q "\[CRITICAL\]" security-output.txt; then
+            echo "::error::Critical security findings detected!"
+            cat security-output.txt
+            exit 1
+          fi
+          echo "No critical security findings."
