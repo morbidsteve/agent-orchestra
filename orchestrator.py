@@ -345,10 +345,13 @@ Workflows:
 
     args = parser.parse_args()
 
-    # Verify API key
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("Error: ANTHROPIC_API_KEY environment variable not set.")
-        print("Export it with: export ANTHROPIC_API_KEY=your-key-here")
+    # Verify Claude CLI is authenticated (SDK uses claude binary for auth)
+    import shutil
+    claude_path = shutil.which("claude")
+    if not claude_path:
+        print("Error: Claude Code CLI not found.")
+        print("Install with: npm install -g @anthropic-ai/claude-code")
+        print("Then authenticate: claude")
         sys.exit(1)
 
     asyncio.run(

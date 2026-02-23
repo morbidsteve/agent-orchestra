@@ -1,0 +1,306 @@
+#!/usr/bin/env bash
+set -e
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Agent Orchestra — Single-command launcher
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# Usage:
+#   ./orchestra              Start the dashboard (backend + frontend)
+#   ./orchestra --setup      First-time setup only
+#   ./orchestra --stop       Stop running servers
+#   ./orchestra --status     Check if everything is running
+#
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VENV_DIR="$SCRIPT_DIR/.venv"
+DASHBOARD_DIR="$SCRIPT_DIR/orchestra-dashboard"
+PID_DIR="$SCRIPT_DIR/.orchestra-pids"
+BACKEND_PORT=8000
+FRONTEND_PORT=5173
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+DIM='\033[2m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+log()  { echo -e "${BLUE}▸${NC} $1"; }
+ok()   { echo -e "${GREEN}✓${NC} $1"; }
+err()  { echo -e "${RED}✗${NC} $1"; }
+dim()  { echo -e "${DIM}  $1${NC}"; }
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Stop running servers
+# ──────────────────────────────────────────────────────────────────────────────
+stop_servers() {
+    if [ -d "$PID_DIR" ]; then
+        for pidfile in "$PID_DIR"/*.pid; do
+            [ -f "$pidfile" ] || continue
+            pid=$(cat "$pidfile")
+            name=$(basename "$pidfile" .pid)
+            if kill -0 "$pid" 2>/dev/null; then
+                kill "$pid" 2>/dev/null && ok "Stopped $name (pid $pid)"
+                # Also kill child processes
+                pkill -P "$pid" 2>/dev/null || true
+            fi
+            rm -f "$pidfile"
+        done
+    fi
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Status check
+# ──────────────────────────────────────────────────────────────────────────────
+check_status() {
+    echo -e "\n${BOLD}Agent Orchestra Status${NC}\n"
+
+    # Claude CLI
+    if command -v claude &>/dev/null; then
+        ok "Claude Code CLI: $(claude --version 2>/dev/null || echo 'installed')"
+        auth_status=$(claude auth status 2>/dev/null | grep -o '"loggedIn": *[a-z]*' | grep -o '[a-z]*$' || echo "unknown")
+        if [ "$auth_status" = "true" ]; then
+            ok "Claude auth: logged in"
+        else
+            err "Claude auth: not logged in (run 'claude' to authenticate)"
+        fi
+    else
+        err "Claude Code CLI: not installed"
+    fi
+
+    # Python venv
+    if [ -d "$VENV_DIR" ]; then
+        ok "Python venv: ready"
+    else
+        err "Python venv: not set up (run './orchestra --setup')"
+    fi
+
+    # Node modules
+    if [ -d "$DASHBOARD_DIR/node_modules" ]; then
+        ok "Node modules: installed"
+    else
+        err "Node modules: not installed (run './orchestra --setup')"
+    fi
+
+    # Backend
+    if curl -sf "http://127.0.0.1:$BACKEND_PORT/api/health" &>/dev/null; then
+        ok "Backend: running on :$BACKEND_PORT"
+    else
+        dim "Backend: not running"
+    fi
+
+    # Frontend
+    if curl -sf "http://127.0.0.1:$FRONTEND_PORT" &>/dev/null; then
+        ok "Frontend: running on :$FRONTEND_PORT"
+    else
+        dim "Frontend: not running"
+    fi
+
+    echo ""
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Setup
+# ──────────────────────────────────────────────────────────────────────────────
+setup() {
+    echo -e "\n${BOLD}🎼 Agent Orchestra — Setup${NC}\n"
+
+    # Check for Claude CLI
+    if ! command -v claude &>/dev/null; then
+        err "Claude Code CLI not found."
+        echo "  Install it:  npm install -g @anthropic-ai/claude-code"
+        echo "  Then run:    claude    (to authenticate via browser)"
+        exit 1
+    fi
+    ok "Claude Code CLI found"
+
+    # Check Claude auth
+    auth_status=$(claude auth status 2>/dev/null | grep -o '"loggedIn": *[a-z]*' | grep -o '[a-z]*$' || echo "unknown")
+    if [ "$auth_status" != "true" ]; then
+        log "Claude Code not authenticated. Opening browser to log in..."
+        echo ""
+        dim "A browser window will open. Log in with your Anthropic account."
+        dim "After login, come back here and the setup will continue."
+        echo ""
+        claude auth login 2>/dev/null || claude 2>/dev/null || true
+        # Re-check
+        auth_status=$(claude auth status 2>/dev/null | grep -o '"loggedIn": *[a-z]*' | grep -o '[a-z]*$' || echo "unknown")
+        if [ "$auth_status" != "true" ]; then
+            err "Authentication failed. Please run 'claude' manually to authenticate."
+            exit 1
+        fi
+    fi
+    ok "Claude authenticated"
+
+    # Check for uv or python3
+    if command -v uv &>/dev/null; then
+        PYTHON_PKG_MGR="uv"
+    elif command -v python3 &>/dev/null; then
+        PYTHON_PKG_MGR="python3"
+    else
+        err "Python 3 not found. Install Python 3.11+ first."
+        exit 1
+    fi
+
+    # Create Python venv + install deps
+    if [ ! -d "$VENV_DIR" ]; then
+        log "Creating Python virtual environment..."
+        if [ "$PYTHON_PKG_MGR" = "uv" ]; then
+            uv venv "$VENV_DIR" 2>/dev/null
+        else
+            python3 -m venv "$VENV_DIR"
+        fi
+    fi
+    ok "Python venv ready"
+
+    log "Installing Python dependencies..."
+    if [ "$PYTHON_PKG_MGR" = "uv" ]; then
+        source "$VENV_DIR/bin/activate"
+        uv pip install -r "$SCRIPT_DIR/backend/requirements.txt" claude-agent-sdk 2>&1 | tail -1
+    else
+        source "$VENV_DIR/bin/activate"
+        pip install -q -r "$SCRIPT_DIR/backend/requirements.txt" claude-agent-sdk 2>&1 | tail -1
+    fi
+    ok "Python deps installed"
+
+    # Install npm deps
+    if [ ! -d "$DASHBOARD_DIR/node_modules" ]; then
+        log "Installing frontend dependencies..."
+        cd "$DASHBOARD_DIR" && npm install --silent 2>&1 | tail -1
+        cd "$SCRIPT_DIR"
+    fi
+    ok "Frontend deps installed"
+
+    echo -e "\n${GREEN}${BOLD}Setup complete!${NC} Run ${BOLD}./orchestra${NC} to start.\n"
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Start servers
+# ──────────────────────────────────────────────────────────────────────────────
+start() {
+    echo -e "\n${BOLD}🎼 Agent Orchestra${NC}\n"
+
+    # Auto-setup if needed
+    if [ ! -d "$VENV_DIR" ] || [ ! -d "$DASHBOARD_DIR/node_modules" ]; then
+        log "First run detected — running setup..."
+        setup
+        echo -e "\n${BOLD}Starting servers...${NC}\n"
+    fi
+
+    # Check Claude auth
+    if command -v claude &>/dev/null; then
+        auth_status=$(claude auth status 2>/dev/null | grep -o '"loggedIn": *[a-z]*' | grep -o '[a-z]*$' || echo "unknown")
+        if [ "$auth_status" = "true" ]; then
+            ok "Claude authenticated — agents will use real AI"
+        else
+            log "Claude not authenticated — agents will run in simulation mode"
+            dim "Run 'claude' to authenticate for real agent execution"
+        fi
+    else
+        log "Claude CLI not found — running in simulation mode"
+    fi
+
+    # Stop any existing servers
+    stop_servers
+
+    # Create PID directory
+    mkdir -p "$PID_DIR"
+
+    # Activate venv
+    source "$VENV_DIR/bin/activate"
+
+    # Start backend
+    log "Starting backend on :$BACKEND_PORT..."
+    cd "$SCRIPT_DIR"
+    python -m uvicorn backend.main:app \
+        --host 127.0.0.1 \
+        --port "$BACKEND_PORT" \
+        --log-level warning \
+        &>"$SCRIPT_DIR/.orchestra-backend.log" &
+    echo $! > "$PID_DIR/backend.pid"
+
+    # Wait for backend
+    for i in $(seq 1 20); do
+        if curl -sf "http://127.0.0.1:$BACKEND_PORT/api/health" &>/dev/null; then
+            break
+        fi
+        sleep 0.3
+    done
+
+    if curl -sf "http://127.0.0.1:$BACKEND_PORT/api/health" &>/dev/null; then
+        ok "Backend running"
+    else
+        err "Backend failed to start. Check .orchestra-backend.log"
+        cat "$SCRIPT_DIR/.orchestra-backend.log" | tail -20
+        exit 1
+    fi
+
+    # Start frontend
+    log "Starting frontend on :$FRONTEND_PORT..."
+    cd "$DASHBOARD_DIR"
+    npx vite --host 127.0.0.1 --port "$FRONTEND_PORT" \
+        &>"$SCRIPT_DIR/.orchestra-frontend.log" &
+    echo $! > "$PID_DIR/frontend.pid"
+    cd "$SCRIPT_DIR"
+
+    # Wait for frontend
+    for i in $(seq 1 30); do
+        if curl -sf "http://127.0.0.1:$FRONTEND_PORT" &>/dev/null; then
+            break
+        fi
+        sleep 0.5
+    done
+
+    if curl -sf "http://127.0.0.1:$FRONTEND_PORT" &>/dev/null; then
+        ok "Frontend running"
+    else
+        err "Frontend failed to start. Check .orchestra-frontend.log"
+        exit 1
+    fi
+
+    echo ""
+    echo -e "${GREEN}${BOLD}  Dashboard ready → http://localhost:$FRONTEND_PORT${NC}"
+    echo ""
+
+    # Open browser (macOS or Linux)
+    if command -v open &>/dev/null; then
+        open "http://localhost:$FRONTEND_PORT"
+    elif command -v xdg-open &>/dev/null; then
+        xdg-open "http://localhost:$FRONTEND_PORT" 2>/dev/null
+    fi
+
+    # Handle Ctrl+C
+    trap 'echo ""; log "Shutting down..."; stop_servers; exit 0' INT TERM
+
+    echo -e "${DIM}  Press Ctrl+C to stop${NC}"
+    echo ""
+
+    # Tail logs
+    tail -f "$SCRIPT_DIR/.orchestra-backend.log" "$SCRIPT_DIR/.orchestra-frontend.log" 2>/dev/null &
+    TAIL_PID=$!
+
+    # Wait for servers to die
+    wait "$(cat "$PID_DIR/backend.pid" 2>/dev/null)" 2>/dev/null
+    kill $TAIL_PID 2>/dev/null
+    stop_servers
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# CLI
+# ──────────────────────────────────────────────────────────────────────────────
+case "${1:-}" in
+    --setup)    setup ;;
+    --stop)     stop_servers ;;
+    --status)   check_status ;;
+    --help|-h)
+        echo "Usage: orchestra [--setup|--stop|--status|--help]"
+        echo ""
+        echo "  (no args)   Start the dashboard (auto-setup on first run)"
+        echo "  --setup     Install dependencies and configure auth"
+        echo "  --stop      Stop running servers"
+        echo "  --status    Check what's running"
+        echo "  --help      Show this help"
+        ;;
+    *)          start ;;
+esac

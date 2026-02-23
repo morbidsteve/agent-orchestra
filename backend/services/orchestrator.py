@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
-import os
+import shutil
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -22,13 +22,17 @@ _orchestrator_available: bool | None = None
 
 
 def _check_orchestrator_available() -> bool:
-    """Check if the real orchestrator and its dependencies are available."""
+    """Check if the real orchestrator and its dependencies are available.
+
+    The claude-agent-sdk authenticates via the Claude Code CLI binary
+    (OAuth), so we check for the CLI + SDK — no API key needed.
+    """
     global _orchestrator_available
     if _orchestrator_available is not None:
         return _orchestrator_available
-    has_api_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    has_claude_cli = shutil.which("claude") is not None
     has_sdk = importlib.util.find_spec("claude_agent_sdk") is not None
-    _orchestrator_available = has_api_key and has_sdk
+    _orchestrator_available = has_claude_cli and has_sdk
     return _orchestrator_available
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -261,7 +265,7 @@ async def _try_real_orchestrator(
         sdk_missing_signals = [
             "claude-agent-sdk",
             "ModuleNotFoundError",
-            "ANTHROPIC_API_KEY",
+            "Claude Code CLI not found",
         ]
         if any(signal in all_output for signal in sdk_missing_signals):
             return False
