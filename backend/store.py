@@ -121,6 +121,7 @@ def init_agents() -> None:
         role = defaults["role"]
         agents[role] = {
             **defaults,
+            "isCustom": False,
             "status": "idle",
             "currentExecution": None,
             "completedTasks": 0,

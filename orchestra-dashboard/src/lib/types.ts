@@ -1,7 +1,7 @@
 export type ExecutionStatus = 'running' | 'completed' | 'failed' | 'queued';
 export type PipelinePhase = 'plan' | 'develop' | 'test' | 'security' | 'report';
 export type PhaseStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
-export type AgentRole = 'developer' | 'developer-2' | 'tester' | 'devsecops' | 'business-dev';
+export type AgentRole = string;
 export type AgentStatus = 'idle' | 'busy' | 'offline';
 export type FindingSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 export type FindingType = 'security' | 'quality' | 'performance' | 'compliance';
@@ -61,6 +61,7 @@ export interface AgentInfo {
   tools: string[];
   color: string;
   icon: string;
+  isCustom?: boolean;
   currentExecution: string | null;
   completedTasks: number;
   successRate: number;
@@ -131,5 +132,7 @@ export interface OrchestraState {
 
 export interface OrchestraActions {
   startExecution: (workflow: WorkflowType, task: string, model: string, target: string, projectSource: ProjectSource) => Promise<string>;
+  createAgent: (params: { name: string; description: string; capabilities: string[]; tools: string[]; color: string; icon: string }) => Promise<void>;
+  deleteAgent: (role: string) => Promise<void>;
   refetch: () => void;
 }

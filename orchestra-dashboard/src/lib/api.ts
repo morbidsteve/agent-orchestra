@@ -1,4 +1,5 @@
 import type { Execution, AgentInfo, Finding, WorkflowType, ProjectSource, AuthStatus, GitHubLoginResponse, GitHubLoginStatus } from './types.ts';
+export type { AgentInfo };
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -70,4 +71,24 @@ export function fetchGithubLoginStatus(): Promise<GitHubLoginStatus> {
 
 export function githubLogout(): Promise<{ success: boolean }> {
   return apiFetch<{ success: boolean }>('/api/auth/github/logout', { method: 'POST' });
+}
+
+export function createAgent(params: {
+  name: string;
+  description: string;
+  capabilities: string[];
+  tools: string[];
+  color: string;
+  icon: string;
+}): Promise<AgentInfo> {
+  return apiFetch<AgentInfo>('/api/agents', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export function deleteAgent(role: string): Promise<{ deleted: string }> {
+  return apiFetch<{ deleted: string }>(`/api/agents/${encodeURIComponent(role)}`, {
+    method: 'DELETE',
+  });
 }

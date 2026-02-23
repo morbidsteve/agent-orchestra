@@ -2,11 +2,12 @@ import { Badge } from '../../ui/Badge.tsx';
 import { StatusDot } from '../../ui/StatusDot.tsx';
 import { Link } from 'react-router-dom';
 import type { AgentInfo } from '../../../lib/types.ts';
-import { Terminal, Code, FlaskConical, Shield, Briefcase, ExternalLink } from 'lucide-react';
+import { Terminal, Code, FlaskConical, Shield, Briefcase, ExternalLink, Wrench, FileText, Database, Bot, Palette, Globe, Trash2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface AgentCardProps {
   agent: AgentInfo;
+  onDelete?: () => void;
 }
 
 const iconMap: Record<string, LucideIcon> = {
@@ -15,9 +16,15 @@ const iconMap: Record<string, LucideIcon> = {
   FlaskConical,
   Shield,
   Briefcase,
+  Wrench,
+  FileText,
+  Database,
+  Bot,
+  Palette,
+  Globe,
 };
 
-export function AgentCard({ agent }: AgentCardProps) {
+export function AgentCard({ agent, onDelete }: AgentCardProps) {
   const Icon = iconMap[agent.icon] || Terminal;
 
   return (
@@ -46,6 +53,15 @@ export function AgentCard({ agent }: AgentCardProps) {
               <p className="text-xs text-gray-500 capitalize">{agent.status}</p>
             </div>
           </div>
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+              title="Delete agent"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {/* Description */}
