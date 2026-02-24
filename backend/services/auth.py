@@ -352,8 +352,25 @@ async def start_claude_login() -> dict:
         "state": state,
     }
 
-    logger.info("Claude OAuth: generated auth URL (state=%s…)", state[:8])
+    logger.info(
+        "Claude OAuth: generated auth URL — state=%s… verifier_len=%d challenge=%s…",
+        state[:8], len(code_verifier), code_challenge[:8],
+    )
     return {"authUrl": auth_url, "status": "pending"}
+
+
+def _clean_auth_code(raw: str) -> str:
+    """Strip URL fragments, query‐param tails, and whitespace from a pasted code."""
+    cleaned = raw.strip()
+    # If user pasted a full callback URL, extract the code param
+    if cleaned.startswith("http"):
+        parsed = urllib.parse.urlparse(cleaned)
+        qs = urllib.parse.parse_qs(parsed.query)
+        if "code" in qs:
+            cleaned = qs["code"][0]
+    # Strip trailing fragment or extra &params
+    cleaned = cleaned.split("#")[0].split("&")[0].strip()
+    return cleaned
 
 
 async def submit_claude_auth_code(code: str) -> dict:
@@ -368,22 +385,41 @@ async def submit_claude_auth_code(code: str) -> dict:
     if not code_verifier:
         return {"status": "error", "error": "No PKCE verifier — start login first"}
 
+    cleaned_code = _clean_auth_code(code)
+    logger.info(
+        "Claude OAuth: exchanging code (first 8 chars: %s…, length: %d, state: %s…)",
+        cleaned_code[:8], len(cleaned_code), (state or "")[:8],
+    )
+
     try:
-        token_body = json.dumps({
+        token_payload = {
             "grant_type": "authorization_code",
             "client_id": _CLAUDE_OAUTH_CLIENT_ID,
-            "code": code.strip(),
+            "code": cleaned_code,
             "redirect_uri": _CLAUDE_OAUTH_REDIRECT_URI,
             "code_verifier": code_verifier,
             "state": state,
-        }).encode()
+        }
+        token_body = json.dumps(token_payload).encode()
+
+        logger.info(
+            "Claude OAuth: POST %s  redirect_uri=%s  code_verifier length=%d",
+            _CLAUDE_OAUTH_TOKEN_URL, _CLAUDE_OAUTH_REDIRECT_URI, len(code_verifier),
+        )
 
         req = urllib.request.Request(
             _CLAUDE_OAUTH_TOKEN_URL,
             data=token_body,
             headers={
                 "Content-Type": "application/json",
-                "User-Agent": "claude-code/2.1.52",
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/131.0.0.0 Safari/537.36"
+                ),
+                "Accept": "application/json, text/plain, */*",
+                "Referer": "https://claude.ai/",
+                "Origin": "https://claude.ai",
             },
             method="POST",
         )
@@ -393,6 +429,7 @@ async def submit_claude_auth_code(code: str) -> dict:
             None, lambda: urllib.request.urlopen(req, timeout=15),
         )
         result = json.loads(resp.read().decode())
+        logger.info("Claude OAuth: token exchange succeeded, keys: %s", list(result.keys()))
 
         access_token = result.get("access_token", "")
         refresh_token = result.get("refresh_token", "")
@@ -413,19 +450,20 @@ async def submit_claude_auth_code(code: str) -> dict:
             json.dump(credentials, f, indent=2)
         os.chmod(_CLAUDE_CREDENTIALS_PATH, 0o600)
 
-        logger.info("Claude OAuth: tokens written to %s", _CLAUDE_CREDENTIALS_PATH)
+        logger.info("Claude OAuth: credentials written to %s", _CLAUDE_CREDENTIALS_PATH)
         _claude_login_session = {"status": "authenticated"}
         return {"status": "authenticated"}
 
     except urllib.error.HTTPError as exc:
         body = exc.read().decode() if exc.fp else str(exc)
         logger.error("Claude OAuth token exchange failed: %s %s", exc.code, body)
-        _claude_login_session["status"] = "error"
-        _claude_login_session["error"] = f"Token exchange failed ({exc.code})"
-        return {"status": "error", "error": f"Token exchange failed ({exc.code})"}
+        # Keep the session alive so the user can retry with a new code
+        _claude_login_session["status"] = "pending"
+        _claude_login_session["error"] = f"Token exchange failed ({exc.code}): {body}"
+        return {"status": "error", "error": f"Token exchange failed ({exc.code}): {body}"}
     except Exception as exc:
         logger.exception("Claude OAuth token exchange failed")
-        _claude_login_session["status"] = "error"
+        _claude_login_session["status"] = "pending"
         _claude_login_session["error"] = str(exc)
         return {"status": "error", "error": str(exc)}
 
