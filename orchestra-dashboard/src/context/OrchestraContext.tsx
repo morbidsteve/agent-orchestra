@@ -41,6 +41,7 @@ export function OrchestraProvider({ children, initialState }: { children: ReactN
 
   const {
     data: authStatus,
+    refetch: refetchAuthStatus,
   } = useApiData<AuthStatus | null>(authStatusFetcher, fallback.authStatus, useApi ? 30000 : undefined);
 
   const isLive = useApi && executionsLive;
@@ -89,7 +90,8 @@ export function OrchestraProvider({ children, initialState }: { children: ReactN
     createAgent,
     deleteAgent,
     refetch,
-  }), [executions, agents, findings, authStatus, isLive, startExecution, createAgent, deleteAgent, refetch]);
+    refetchAuthStatus,
+  }), [executions, agents, findings, authStatus, isLive, startExecution, createAgent, deleteAgent, refetch, refetchAuthStatus]);
 
   return (
     <OrchestraContext.Provider value={contextValue}>

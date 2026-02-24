@@ -147,6 +147,7 @@ export interface OrchestraActions {
   createAgent: (params: { name: string; description: string; capabilities: string[]; tools: string[]; color: string; icon: string }) => Promise<void>;
   deleteAgent: (role: string) => Promise<void>;
   refetch: () => void;
+  refetchAuthStatus: () => void;
 }
 
 export interface BrowseResponse {

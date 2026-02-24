@@ -22,13 +22,15 @@ function renderWithRouter(initialEntries: string[] = ['/protected']) {
   );
 }
 
+const baseMock = { refetchAuthStatus: vi.fn() };
+
 describe('RequireAuth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('shows loading screen when authStatus is null', () => {
-    mockUseOrchestra.mockReturnValue({ authStatus: null });
+    mockUseOrchestra.mockReturnValue({ ...baseMock, authStatus: null });
     renderWithRouter();
     expect(screen.getByText('Loading...')).toBeInTheDocument();
     expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
@@ -37,6 +39,7 @@ describe('RequireAuth', () => {
 
   it('redirects to /setup when github is not authenticated', () => {
     mockUseOrchestra.mockReturnValue({
+      ...baseMock,
       authStatus: {
         github: { authenticated: false, username: null },
         claude: { authenticated: true },
@@ -49,6 +52,7 @@ describe('RequireAuth', () => {
 
   it('redirects to /setup when claude is not authenticated', () => {
     mockUseOrchestra.mockReturnValue({
+      ...baseMock,
       authStatus: {
         github: { authenticated: true, username: 'octocat' },
         claude: { authenticated: false },
@@ -61,6 +65,7 @@ describe('RequireAuth', () => {
 
   it('redirects to /setup when neither service is authenticated', () => {
     mockUseOrchestra.mockReturnValue({
+      ...baseMock,
       authStatus: {
         github: { authenticated: false, username: null },
         claude: { authenticated: false },
@@ -73,6 +78,7 @@ describe('RequireAuth', () => {
 
   it('renders child route (Outlet) when both services are authenticated', () => {
     mockUseOrchestra.mockReturnValue({
+      ...baseMock,
       authStatus: {
         github: { authenticated: true, username: 'octocat' },
         claude: { authenticated: true, email: 'user@example.com' },
