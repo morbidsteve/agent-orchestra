@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import uuid
 from datetime import datetime, timezone
@@ -121,6 +122,11 @@ def _create_execution_record(
         for phase in phases
     ]
 
+    # Create an isolated project directory so agents don't work inside
+    # the Orchestra codebase itself.
+    project_dir = os.path.join(settings.PROJECTS_DIR, exec_id)
+    os.makedirs(project_dir, exist_ok=True)
+
     execution: dict[str, Any] = {
         "id": exec_id,
         "workflow": workflow,
@@ -129,7 +135,7 @@ def _create_execution_record(
         "model": model,
         "target": "",
         "projectSource": None,
-        "resolvedProjectPath": "",
+        "resolvedProjectPath": project_dir,
         "createdAt": now,
         "startedAt": None,
         "completedAt": None,
