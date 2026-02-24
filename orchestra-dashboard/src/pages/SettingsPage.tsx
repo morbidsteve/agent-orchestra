@@ -36,7 +36,12 @@ export function SettingsPage() {
   const handleClaudeLogin = async () => {
     setClaudeError(null);
     const response = await startClaudeAuth();
-    if (!response || response.status === 'error') {
+    if (!response) {
+      setClaudeError('Failed to start Claude login. Is the Claude CLI installed?');
+    } else if (response.status === 'already_authenticated') {
+      // Already authenticated — just refresh auth status
+      // (the hook's polling will pick it up)
+    } else if (response.status === 'error') {
       setClaudeError('Failed to start Claude login. Is the Claude CLI installed?');
     }
   };
@@ -166,9 +171,15 @@ export function SettingsPage() {
             Checking status...
           </div>
         ) : claudeConnected ? (
-          <p className="text-sm text-gray-300">
-            Claude Code CLI is authenticated and ready.
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-300">
+              {authStatus?.claude?.email ? (
+                <>Authenticated as <span className="font-medium text-gray-100">{authStatus.claude.email}</span></>
+              ) : (
+                <>Claude Code CLI is authenticated and ready.</>
+              )}
+            </p>
+          </div>
         ) : claudeLoginInProgress && claudeAuthUrl ? (
           <div className="space-y-4">
             <p className="text-sm text-gray-300">
