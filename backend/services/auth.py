@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import fcntl
 import hashlib
 import json
 import logging
 import os
-import pty
 import re
 import secrets
 import shutil
@@ -114,12 +112,18 @@ async def _get_claude_status() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# GitHub device-flow login
+# GitHub device-flow login (direct API — no CLI subprocess)
 # ---------------------------------------------------------------------------
+
+# GitHub OAuth App client_id for the gh CLI (public, well-known)
+_GH_CLIENT_ID = "178c6fc778ccc68e1d6a"
+_GH_DEVICE_CODE_URL = "https://github.com/login/device/code"
+_GH_TOKEN_URL = "https://github.com/login/oauth/access_token"
+_GH_SCOPES = "repo,read:org,gist"
 
 
 async def start_github_login() -> dict:
-    """Spawn `gh auth login --web` in a PTY and extract the device code."""
+    """Start GitHub device-flow login via the API directly."""
     global _login_session
 
     if _login_session and _login_session.get("status") == "pending":
@@ -131,138 +135,143 @@ async def start_github_login() -> dict:
             "status": "pending",
         }
 
-    if not shutil.which("gh"):
-        raise RuntimeError("gh CLI not installed")
-
-    # Use a PTY so the CLI outputs its device code properly.
-    master_fd, slave_fd = pty.openpty()
-    flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
-    fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-
-    process = await asyncio.create_subprocess_exec(
-        "gh", "auth", "login", "--web", "-h", "github.com",
-        stdin=slave_fd,
-        stdout=slave_fd,
-        stderr=slave_fd,
-    )
-
-    os.close(slave_fd)
-
-    _login_session = {
-        "process": process,
-        "master_fd": master_fd,
-        "status": "pending",
-        "deviceCode": None,
-        "verificationUrl": "https://github.com/login/device",
-    }
-
-    device_code: str | None = None
-    verification_url = "https://github.com/login/device"
-    loop = asyncio.get_event_loop()
-    buf = ""
-
-    async def _read_chunk() -> str:
-        try:
-            data = await asyncio.wait_for(
-                loop.run_in_executor(None, os.read, master_fd, 4096),
-                timeout=3,
-            )
-            return data.decode("utf-8", errors="replace")
-        except (asyncio.TimeoutError, OSError):
-            return ""
+    logger.info("GitHub OAuth: requesting device code")
 
     try:
-        deadline = loop.time() + 15
-        while loop.time() < deadline:
-            chunk = await _read_chunk()
-            if chunk:
-                buf += chunk
-                logger.debug("gh auth login pty: %s", chunk.rstrip())
-                code_match = re.search(
-                    r"code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})", buf, re.IGNORECASE,
-                )
-                if code_match:
-                    device_code = code_match.group(1)
-                url_match = re.search(
-                    r"(https://github\.com/login/device\S*)", buf,
-                )
-                if url_match:
-                    verification_url = url_match.group(1)
-                if device_code:
-                    break
-            else:
-                await asyncio.sleep(0.2)
-    except Exception:
-        _login_session["status"] = "error"
-        _login_session["error"] = "Failed to read device code"
+        body = urllib.parse.urlencode({
+            "client_id": _GH_CLIENT_ID,
+            "scope": _GH_SCOPES,
+        }).encode()
 
-    if device_code:
-        _login_session["deviceCode"] = device_code
-        _login_session["verificationUrl"] = verification_url
-        asyncio.create_task(_monitor_github_login_pty(process, master_fd))
+        req = urllib.request.Request(
+            _GH_DEVICE_CODE_URL,
+            data=body,
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            method="POST",
+        )
+
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(
+            None, lambda: urllib.request.urlopen(req, timeout=10),
+        )
+        result = json.loads(resp.read().decode())
+        logger.info("GitHub OAuth: device code response keys: %s", list(result.keys()))
+
+        device_code = result.get("device_code")
+        user_code = result.get("user_code")
+        verification_uri = result.get("verification_uri", "https://github.com/login/device")
+        expires_in = result.get("expires_in", 900)
+        interval = result.get("interval", 5)
+
+        if not device_code or not user_code:
+            logger.error("GitHub OAuth: missing device_code or user_code: %s", result)
+            return {"deviceCode": None, "verificationUrl": None, "status": "error"}
+
+        _login_session = {
+            "status": "pending",
+            "deviceCode": user_code,
+            "device_code": device_code,
+            "verificationUrl": verification_uri,
+            "interval": interval,
+            "expires_in": expires_in,
+        }
+
+        # Start background polling for the user to complete authorization
+        asyncio.create_task(_poll_github_device_flow(device_code, interval, expires_in))
+
+        logger.info("GitHub OAuth: user_code=%s verification_uri=%s", user_code, verification_uri)
         return {
-            "deviceCode": device_code,
-            "verificationUrl": verification_url,
+            "deviceCode": user_code,
+            "verificationUrl": verification_uri,
             "status": "pending",
         }
-    else:
-        _login_session["status"] = "error"
-        _login_session["error"] = "Could not extract device code"
-        try:
-            process.kill()
-        except ProcessLookupError:
-            pass
-        os.close(master_fd)
-        return {"deviceCode": None, "verificationUrl": None, "status": "error"}
+
+    except Exception as exc:
+        logger.exception("GitHub OAuth: device code request failed")
+        return {"deviceCode": None, "verificationUrl": None, "status": "error",
+                "error": str(exc)}
 
 
-async def _monitor_github_login_pty(
-    process: asyncio.subprocess.Process,
-    master_fd: int,
+async def _poll_github_device_flow(
+    device_code: str, interval: int, expires_in: int,
 ) -> None:
-    """Background: drain the PTY and wait for gh login to complete."""
+    """Background: poll GitHub until the user authorizes or the code expires."""
     global _login_session
     loop = asyncio.get_event_loop()
+    deadline = loop.time() + expires_in
 
-    async def _drain() -> None:
-        while True:
-            try:
-                await asyncio.wait_for(
-                    loop.run_in_executor(None, os.read, master_fd, 4096),
-                    timeout=2,
+    while loop.time() < deadline:
+        await asyncio.sleep(interval)
+
+        try:
+            body = urllib.parse.urlencode({
+                "client_id": _GH_CLIENT_ID,
+                "device_code": device_code,
+                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+            }).encode()
+
+            req = urllib.request.Request(
+                _GH_TOKEN_URL,
+                data=body,
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                method="POST",
+            )
+
+            resp = await loop.run_in_executor(
+                None, lambda: urllib.request.urlopen(req, timeout=10),
+            )
+            result = json.loads(resp.read().decode())
+
+            if "access_token" in result:
+                access_token = result["access_token"]
+                logger.info("GitHub OAuth: got access token, writing gh config")
+
+                # Write the token so `gh` CLI is authenticated
+                proc = await asyncio.create_subprocess_exec(
+                    "gh", "auth", "login", "--with-token",
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                 )
-            except (asyncio.TimeoutError, OSError):
-                if process.returncode is not None:
-                    break
-                await asyncio.sleep(0.5)
+                await proc.communicate(input=access_token.encode())
 
-    drain_task = asyncio.create_task(_drain())
+                status = await _get_github_status()
+                if _login_session:
+                    _login_session["status"] = "authenticated"
+                    _login_session["username"] = status.get("username")
+                logger.info("GitHub OAuth: authenticated as %s", status.get("username"))
+                return
 
-    try:
-        await asyncio.wait_for(process.wait(), timeout=300)
-        if process.returncode == 0:
-            status = await _get_github_status()
-            if _login_session:
-                _login_session["status"] = "authenticated"
-                _login_session["username"] = status.get("username")
-        else:
-            if _login_session:
-                _login_session["status"] = "error"
-                _login_session["error"] = "Login process failed"
-    except asyncio.TimeoutError:
-        if _login_session:
-            _login_session["status"] = "error"
-            _login_session["error"] = "Login timed out"
-        try:
-            process.kill()
-        except ProcessLookupError:
-            pass
-    finally:
-        drain_task.cancel()
-        try:
-            os.close(master_fd)
-        except OSError:
-            pass
+            error = result.get("error")
+            if error == "authorization_pending":
+                continue
+            elif error == "slow_down":
+                interval += 5
+                continue
+            elif error in ("expired_token", "access_denied"):
+                logger.warning("GitHub OAuth: %s", error)
+                if _login_session:
+                    _login_session["status"] = "error"
+                    _login_session["error"] = f"Device flow: {error}"
+                return
+            else:
+                logger.warning("GitHub OAuth: unexpected poll response: %s", result)
+                continue
+
+        except Exception:
+            logger.exception("GitHub OAuth: poll error")
+            continue
+
+    # Expired
+    if _login_session:
+        _login_session["status"] = "error"
+        _login_session["error"] = "Device code expired"
 
 
 def get_login_session_status() -> dict:
