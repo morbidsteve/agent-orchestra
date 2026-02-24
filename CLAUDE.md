@@ -97,6 +97,20 @@ the final step of every successful pipeline. The workflow is:
 If the merge fails (e.g., branch protection, merge conflicts), report the PR URL and the
 error — do not silently retry or force-push.
 
+## Development Environment
+
+This project runs inside the [Trail of Bits Claude Code devcontainer](https://github.com/trailofbits/claude-code-devcontainer).
+The container has `bypassPermissions` enabled — agents run unrestricted (filesystem, network,
+processes are sandboxed by Docker). Do NOT restrict sub-agents or add permission guards; the
+container IS the sandbox.
+
+**User workflow**: `devc .` → `devc shell` → `claude` (inside the container)
+
+**Pre-installed tools**: gh CLI, claude CLI, Node 22 (fnm), Python 3.13 (uv), ripgrep, fd,
+tmux, fzf, delta, ast-grep, bubblewrap, iptables
+
+**Persistent volumes**: `~/.claude`, `~/.config/gh`, `/commandhistory` survive container rebuilds.
+
 ## Project Context
 
 Read any CLAUDE.md or README.md in the working repository for project-specific conventions,
