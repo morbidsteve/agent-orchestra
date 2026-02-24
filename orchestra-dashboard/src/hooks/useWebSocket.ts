@@ -22,6 +22,15 @@ export interface WsCompleteMessage {
   status: string;
 }
 
+export interface WsExecutionSnapshotMessage {
+  type: 'execution-snapshot';
+  execution: {
+    id: string;
+    status: string;
+    pipeline: Array<{ phase: string; status: string }>;
+  };
+}
+
 export interface WsClarificationMessage {
   type: 'clarification';
   questionId: string;
@@ -30,7 +39,7 @@ export interface WsClarificationMessage {
   required: boolean;
 }
 
-export type WsMessage = WsOutputMessage | WsPhaseMessage | WsFindingMessage | WsCompleteMessage | WsClarificationMessage;
+export type WsMessage = WsOutputMessage | WsPhaseMessage | WsFindingMessage | WsCompleteMessage | WsClarificationMessage | WsExecutionSnapshotMessage;
 
 interface UseWebSocketResult {
   lines: string[];
@@ -92,6 +101,23 @@ export function useWebSocket(executionId: string | null): UseWebSocketResult {
           case 'clarification':
             setPendingQuestion(msg as WsClarificationMessage);
             break;
+          case 'execution-snapshot': {
+            const snap = (msg as WsExecutionSnapshotMessage).execution;
+            if (snap) {
+              if (snap.status === 'completed') {
+                setStatus('completed');
+              } else if (snap.status === 'failed') {
+                setStatus('failed');
+              } else {
+                setStatus(snap.status);
+              }
+              const runningStep = snap.pipeline?.find((s) => s.status === 'running');
+              if (runningStep) {
+                setCurrentPhase(runningStep.phase);
+              }
+            }
+            break;
+          }
         }
       };
 

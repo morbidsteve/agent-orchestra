@@ -42,7 +42,7 @@ describe('api', () => {
 
       const result = await fetchExecutions();
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/executions', expect.any(Object));
+      expect(mockFetch).toHaveBeenCalledWith('/api/executions/', expect.any(Object));
       expect(result).toEqual(mockData);
     });
 
@@ -97,7 +97,7 @@ describe('api', () => {
 
       const result = await createExecution(params);
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/executions', {
+      expect(mockFetch).toHaveBeenCalledWith('/api/executions/', {
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
         body: JSON.stringify(params),
@@ -127,7 +127,7 @@ describe('api', () => {
 
       const result = await fetchAgents();
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/agents', expect.any(Object));
+      expect(mockFetch).toHaveBeenCalledWith('/api/agents/', expect.any(Object));
       expect(result).toEqual(mockData);
     });
 
@@ -145,7 +145,7 @@ describe('api', () => {
 
       const result = await fetchFindings();
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/findings', expect.any(Object));
+      expect(mockFetch).toHaveBeenCalledWith('/api/findings/', expect.any(Object));
       expect(result).toEqual(mockData);
     });
 
@@ -155,7 +155,7 @@ describe('api', () => {
       await fetchFindings({ severity: 'critical' });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/findings?severity=critical',
+        '/api/findings/?severity=critical',
         expect.any(Object),
       );
     });
@@ -166,7 +166,7 @@ describe('api', () => {
       await fetchFindings({ type: 'security' });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/findings?type=security',
+        '/api/findings/?type=security',
         expect.any(Object),
       );
     });
@@ -177,7 +177,7 @@ describe('api', () => {
       await fetchFindings({ status: 'open' });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/findings?status=open',
+        '/api/findings/?status=open',
         expect.any(Object),
       );
     });
@@ -188,7 +188,7 @@ describe('api', () => {
       await fetchFindings({ severity: 'high', type: 'quality', status: 'resolved' });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/findings?severity=high&type=quality&status=resolved',
+        '/api/findings/?severity=high&type=quality&status=resolved',
         expect.any(Object),
       );
     });
@@ -199,7 +199,7 @@ describe('api', () => {
       await fetchFindings({ severity: undefined, type: 'performance' });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/findings?type=performance',
+        '/api/findings/?type=performance',
         expect.any(Object),
       );
     });

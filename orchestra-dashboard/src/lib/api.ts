@@ -15,7 +15,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export function fetchExecutions(): Promise<Execution[]> {
-  return apiFetch<Execution[]>('/api/executions');
+  return apiFetch<Execution[]>('/api/executions/');
 }
 
 export function fetchExecution(id: string): Promise<Execution> {
@@ -29,14 +29,14 @@ export function createExecution(params: {
   target: string;
   projectSource: ProjectSource;
 }): Promise<Execution> {
-  return apiFetch<Execution>('/api/executions', {
+  return apiFetch<Execution>('/api/executions/', {
     method: 'POST',
     body: JSON.stringify(params),
   });
 }
 
 export function fetchAgents(): Promise<AgentInfo[]> {
-  return apiFetch<AgentInfo[]>('/api/agents');
+  return apiFetch<AgentInfo[]>('/api/agents/');
 }
 
 export function fetchFindings(params?: {
@@ -49,7 +49,7 @@ export function fetchFindings(params?: {
   if (params?.type) searchParams.set('type', params.type);
   if (params?.status) searchParams.set('status', params.status);
   const query = searchParams.toString();
-  const path = query ? `/api/findings?${query}` : '/api/findings';
+  const path = query ? `/api/findings/?${query}` : '/api/findings/';
   return apiFetch<Finding[]>(path);
 }
 
@@ -96,7 +96,7 @@ export function createAgent(params: {
   color: string;
   icon: string;
 }): Promise<AgentInfo> {
-  return apiFetch<AgentInfo>('/api/agents', {
+  return apiFetch<AgentInfo>('/api/agents/', {
     method: 'POST',
     body: JSON.stringify(params),
   });
@@ -194,11 +194,11 @@ export function submitQuestionAnswer(questionId: string, answer: string): Promis
 // ──────────────────────────────────────────────────────────────────────────────
 
 export function fetchCodebases(): Promise<Codebase[]> {
-  return apiFetch<Codebase[]>('/api/codebases');
+  return apiFetch<Codebase[]>('/api/codebases/');
 }
 
 export function createCodebase(name: string, gitUrl?: string, path?: string): Promise<Codebase> {
-  return apiFetch<Codebase>('/api/codebases', {
+  return apiFetch<Codebase>('/api/codebases/', {
     method: 'POST',
     body: JSON.stringify({ name, git_url: gitUrl, path }),
   });

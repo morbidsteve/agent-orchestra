@@ -426,6 +426,15 @@ export interface WsFileActivityMessage {
   agentName: string;
 }
 
+export interface WsExecutionSnapshotMessage {
+  type: 'execution-snapshot';
+  execution: {
+    id: string;
+    status: string;
+    pipeline: Array<{ phase: string; status: string }>;
+  };
+}
+
 export type WsConsoleMessage =
   | WsConsoleTextMessage
   | WsClarificationMessage
@@ -439,4 +448,5 @@ export type WsConsoleMessage =
   | WsAgentSpawnMessage
   | WsAgentOutputMessage
   | WsAgentCompleteMessage
-  | WsFileActivityMessage;
+  | WsFileActivityMessage
+  | WsExecutionSnapshotMessage;
