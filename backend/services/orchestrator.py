@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import importlib.util
+import json
 import os
 import shutil
-import sys
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -24,17 +23,11 @@ _orchestrator_available: bool | None = None
 
 
 def _check_orchestrator_available() -> bool:
-    """Check if the real orchestrator and its dependencies are available.
-
-    The claude-agent-sdk authenticates via the Claude Code CLI binary
-    (OAuth), so we check for the CLI + SDK — no API key needed.
-    """
+    """Check if the Claude Code CLI is available."""
     global _orchestrator_available
     if _orchestrator_available is not None:
         return _orchestrator_available
-    has_claude_cli = shutil.which("claude") is not None
-    has_sdk = importlib.util.find_spec("claude_agent_sdk") is not None
-    _orchestrator_available = has_claude_cli and has_sdk
+    _orchestrator_available = shutil.which("claude") is not None
     return _orchestrator_available
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -47,6 +40,42 @@ PHASE_AGENTS: dict[str, str] = {
     "test": "tester",
     "security": "devsecops",
     "report": "developer",
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase-specific prompts for the Claude Code CLI
+# ──────────────────────────────────────────────────────────────────────────────
+
+PHASE_PROMPTS: dict[str, str] = {
+    "plan": (
+        "You are a senior developer in planning mode. Analyze the task below and create "
+        "a concrete development plan. Identify what files need to change, what new files "
+        "to create, and outline the implementation approach. Do NOT write code yet — just plan.\n\n"
+        "Output a clear, numbered plan."
+    ),
+    "develop": (
+        "You are a senior developer. Implement the task below by writing real code. "
+        "Create files, modify existing ones, and build the feature. Use the tools available "
+        "to you (Read, Edit, Write, Bash, Glob, Grep) to do actual work in the repository.\n\n"
+        "Write production-quality code following existing project conventions."
+    ),
+    "test": (
+        "You are a QA engineer. Write comprehensive tests for the changes made in this project. "
+        "Run the test suite and fix any failures. Use Bash to run tests, Read to understand code, "
+        "and Write/Edit to create test files.\n\n"
+        "Ensure all tests pass before finishing."
+    ),
+    "security": (
+        "You are a DevSecOps security engineer. Review the codebase for security vulnerabilities: "
+        "XSS, injection, exposed secrets, insecure dependencies, OWASP Top 10 issues. "
+        "Use Read and Grep to search the code. Do NOT modify code — only report findings.\n\n"
+        "List any findings with severity (critical/high/medium/low) and remediation steps."
+    ),
+    "report": (
+        "You are a technical writer. Summarize what was accomplished in this execution. "
+        "Review the project state, recent changes, test results, and any security findings. "
+        "Produce a concise executive summary of the work done."
+    ),
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -271,48 +300,69 @@ async def _try_real_orchestrator(
     step: dict[str, Any],
     activity: dict[str, Any],
 ) -> bool:
-    """
-    Attempt to run the real orchestrator via subprocess.
-
-    Returns True if the orchestrator ran successfully, False if it is
-    unavailable and the caller should fall back to simulation.
-    """
+    """Run a pipeline phase using the Claude Code CLI directly."""
     execution = store.executions.get(execution_id)
     if execution is None:
         return False
 
+    claude_path = shutil.which("claude")
+    if not claude_path:
+        return False
+
+    # Build the prompt: phase instructions + user task + previous context
+    phase_prompt = PHASE_PROMPTS.get(phase, "Complete this phase of the task.")
+    user_task = execution.get("task", "")
+
+    # Gather context from previous phases
+    prev_context_parts: list[str] = []
+    for prev_step in execution["pipeline"]:
+        if prev_step["phase"] == phase:
+            break
+        if prev_step["output"]:
+            prev_context_parts.append(
+                f"## {prev_step['phase'].title()} Phase Output\n"
+                + "\n".join(prev_step["output"][-20:])  # Last 20 lines
+            )
+    prev_context = "\n\n".join(prev_context_parts)
+
+    full_prompt = f"{phase_prompt}\n\n## Task\n{user_task}"
+    if prev_context:
+        full_prompt += f"\n\n## Context from Previous Phases\n{prev_context}"
+
+    # Determine working directory
+    cwd = "/workspace"
+    resolved_path = execution.get("resolvedProjectPath", "")
+    if resolved_path and os.path.isdir(resolved_path):
+        cwd = resolved_path
+
+    model = execution.get("model", "sonnet")
+
+    cmd = [
+        claude_path,
+        "-p", full_prompt,
+        "--output-format", "stream-json",
+        "--verbose",
+        "--dangerously-skip-permissions",
+        "--model", model,
+        "--no-session-persistence",
+        "--allowedTools", "Read,Edit,Write,Bash,Glob,Grep",
+    ]
+
+    # Unset CLAUDECODE to avoid nested session detection
+    env = {**os.environ, "CLAUDECODE": ""}
+
     try:
-        cmd = [
-            sys.executable,
-            "/workspace/orchestrator.py",
-            execution["task"],
-            "--workflow", execution["workflow"],
-            "--model", execution["model"],
-        ]
-
-        cwd = "/workspace"
-        resolved_path = execution.get("resolvedProjectPath", "")
-        if resolved_path and os.path.isdir(resolved_path):
-            cmd.extend(["--repo", resolved_path])
-            cwd = resolved_path
-
-        if execution.get("target"):
-            cmd.extend(["--target", execution["target"]])
-
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,
+            env=env,
         )
     except (FileNotFoundError, OSError):
         return False
 
     assert process.stdout is not None
-
-    # Buffer output before committing to step/activity — allows clean
-    # rollback if the process fails due to missing dependencies.
-    buffered_lines: list[str] = []
 
     try:
         while True:
@@ -322,54 +372,117 @@ async def _try_real_orchestrator(
             line = line_bytes.decode("utf-8", errors="replace").rstrip("\n")
             if not line:
                 continue
-            buffered_lines.append(line)
+
+            # Try to parse as JSON
+            try:
+                msg = json.loads(line)
+            except json.JSONDecodeError:
+                # Not JSON, treat as raw output
+                step["output"].append(line)
+                activity["output"].append(line)
+                await broadcast_both(execution_id, {
+                    "type": "output",
+                    "line": line,
+                    "phase": phase,
+                })
+                continue
+
+            msg_type = msg.get("type", "")
+
+            # Extract text from assistant messages
+            if msg_type == "assistant":
+                message_data = msg.get("message", {})
+                content_blocks = message_data.get("content", [])
+                for block in content_blocks:
+                    if block.get("type") == "text":
+                        text = block.get("text", "").strip()
+                        if text:
+                            # Split long text into lines for streaming
+                            for text_line in text.split("\n"):
+                                if text_line.strip():
+                                    step["output"].append(text_line)
+                                    activity["output"].append(text_line)
+                                    await broadcast_both(execution_id, {
+                                        "type": "output",
+                                        "line": text_line,
+                                        "phase": phase,
+                                    })
+                    elif block.get("type") == "tool_use":
+                        tool_name = block.get("name", "unknown")
+                        tool_input = block.get("input", {})
+                        # Show tool usage as output
+                        tool_line = f"[{tool_name}]"
+                        if tool_name == "Bash" and "command" in tool_input:
+                            tool_line = f"$ {tool_input['command']}"
+                        elif tool_name == "Read" and "file_path" in tool_input:
+                            tool_line = f"[Read] {tool_input['file_path']}"
+                        elif tool_name in ("Edit", "Write") and "file_path" in tool_input:
+                            tool_line = f"[{tool_name}] {tool_input['file_path']}"
+                        elif tool_name == "Grep" and "pattern" in tool_input:
+                            tool_line = f"[Grep] {tool_input['pattern']}"
+                        elif tool_name == "Glob" and "pattern" in tool_input:
+                            tool_line = f"[Glob] {tool_input['pattern']}"
+
+                        step["output"].append(tool_line)
+                        activity["output"].append(tool_line)
+
+                        # Track file modifications
+                        if tool_name in ("Edit", "Write") and "file_path" in tool_input:
+                            fp = tool_input["file_path"]
+                            if fp not in activity["filesModified"]:
+                                activity["filesModified"].append(fp)
+
+                        await broadcast_both(execution_id, {
+                            "type": "output",
+                            "line": tool_line,
+                            "phase": phase,
+                        })
+
+            # Extract final result
+            elif msg_type == "result":
+                result_text = msg.get("result", "")
+                if result_text:
+                    for text_line in result_text.strip().split("\n"):
+                        if text_line.strip():
+                            step["output"].append(text_line)
+                            activity["output"].append(text_line)
+
+                            # Check for findings
+                            finding = parse_finding(text_line, execution_id)
+                            if finding:
+                                store.findings[finding["id"]] = finding
+                                execution["findings"].append(finding["id"])
+                                await broadcast_both(execution_id, {
+                                    "type": "finding",
+                                    "finding": finding,
+                                })
+
+                            await broadcast_both(execution_id, {
+                                "type": "output",
+                                "line": text_line,
+                                "phase": phase,
+                            })
+
     except Exception:
-        pass  # Process output stream ended or errored
+        import logging
+        logging.getLogger(__name__).exception("Error reading Claude CLI output")
 
     await process.wait()
 
+    # If the process failed with a non-zero exit code, still return True
+    # (we tried, it ran, it just had errors — don't fall back to simulation)
     if process.returncode != 0:
         stderr_bytes = await process.stderr.read() if process.stderr else b""
         stderr_text = stderr_bytes.decode("utf-8", errors="replace").strip()
-        all_output = " ".join(buffered_lines) + " " + stderr_text
-
-        # If the orchestrator is simply not installed, fall back to simulation
-        sdk_missing_signals = [
-            "claude-agent-sdk",
-            "ModuleNotFoundError",
-            "Claude Code CLI not found",
-        ]
-        if any(signal in all_output for signal in sdk_missing_signals):
-            return False
-
-        # Other errors are real failures — commit output to step/activity
-        for line in buffered_lines:
-            step["output"].append(line)
-            activity["output"].append(line)
         if stderr_text:
-            step["output"].append(f"stderr: {stderr_text}")
-            activity["output"].append(f"stderr: {stderr_text}")
-        return True
-
-    # Success — commit buffered output to step/activity and broadcast
-    for line in buffered_lines:
-        step["output"].append(line)
-        activity["output"].append(line)
-
-        finding = parse_finding(line, execution_id)
-        if finding:
-            store.findings[finding["id"]] = finding
-            execution["findings"].append(finding["id"])
+            err_line = f"Error: {stderr_text[:200]}"
+            step["output"].append(err_line)
+            activity["output"].append(err_line)
             await broadcast_both(execution_id, {
-                "type": "finding",
-                "finding": finding,
+                "type": "output",
+                "line": err_line,
+                "phase": phase,
             })
-
-        await broadcast_both(execution_id, {
-            "type": "output",
-            "line": line,
-            "phase": phase,
-        })
 
     return True
 
