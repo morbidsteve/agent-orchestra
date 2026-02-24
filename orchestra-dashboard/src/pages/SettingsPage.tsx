@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuthStatus } from '../hooks/useAuthStatus.ts';
 import { GitHubAuthCard } from '../components/features/auth/GitHubAuthCard.tsx';
 import { ClaudeAuthCard } from '../components/features/auth/ClaudeAuthCard.tsx';
+import { UpdateCard } from '../components/features/settings/UpdateCard.tsx';
 
 export function SettingsPage() {
   const {
@@ -73,6 +74,9 @@ export function SettingsPage() {
         onSubmitCode={handleSubmitClaudeCode}
         error={claudeError}
       />
+
+      {/* System Update */}
+      <UpdateCard />
     </div>
   );
 }
