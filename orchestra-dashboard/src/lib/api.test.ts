@@ -88,7 +88,7 @@ describe('api', () => {
       const params = {
         workflow: 'full-pipeline' as const,
         task: 'Build feature',
-        model: 'claude-opus-4-6',
+        model: 'opus',
         target: './src',
         projectSource: { type: 'local' as const, path: '/tmp/project' },
       };

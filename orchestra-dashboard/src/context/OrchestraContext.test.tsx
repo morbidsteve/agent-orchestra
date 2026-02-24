@@ -32,7 +32,7 @@ describe('OrchestraContext', () => {
     const { result } = renderHook(() => useOrchestra(), { wrapper });
     let id: string = '';
     await act(async () => {
-      id = await result.current.startExecution('full-pipeline', 'Test task', 'claude-opus-4-6', 'src/', { type: 'local', path: '/tmp/test' });
+      id = await result.current.startExecution('full-pipeline', 'Test task', 'opus', 'src/', { type: 'local', path: '/tmp/test' });
     });
     expect(id).toBe('exec-005');
   });
