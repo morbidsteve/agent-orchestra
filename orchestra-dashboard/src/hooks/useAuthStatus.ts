@@ -1,22 +1,28 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { AuthStatus, GitHubLoginResponse, GitHubLoginStatus } from '../lib/types.ts';
-import { fetchAuthStatus, startGithubLogin, fetchGithubLoginStatus, githubLogout } from '../lib/api.ts';
+import type { AuthStatus, GitHubLoginResponse, GitHubLoginStatus, ClaudeLoginResponse, ClaudeLoginStatus } from '../lib/types.ts';
+import { fetchAuthStatus, startGithubLogin, fetchGithubLoginStatus, githubLogout, startClaudeLogin, fetchClaudeLoginStatus } from '../lib/api.ts';
 
 interface UseAuthStatusResult {
   authStatus: AuthStatus | null;
   loginSession: GitHubLoginStatus | null;
+  claudeLoginSession: ClaudeLoginStatus | null;
   loading: boolean;
   loginInProgress: boolean;
+  claudeLoginInProgress: boolean;
   startLogin: () => Promise<GitHubLoginResponse | null>;
+  startClaudeAuth: () => Promise<ClaudeLoginResponse | null>;
   logout: () => Promise<void>;
 }
 
 export function useAuthStatus(): UseAuthStatusResult {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [loginSession, setLoginSession] = useState<GitHubLoginStatus | null>(null);
+  const [claudeLoginSession, setClaudeLoginSession] = useState<ClaudeLoginStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [loginInProgress, setLoginInProgress] = useState(false);
+  const [claudeLoginInProgress, setClaudeLoginInProgress] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const claudePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -34,7 +40,7 @@ export function useAuthStatus(): UseAuthStatusResult {
     void fetchStatus();
   }, [fetchStatus]);
 
-  // Poll login status when login is in progress
+  // Poll GitHub login status when login is in progress
   useEffect(() => {
     if (!loginInProgress) {
       if (pollRef.current) {
@@ -67,11 +73,55 @@ export function useAuthStatus(): UseAuthStatusResult {
     };
   }, [loginInProgress, fetchStatus]);
 
+  // Poll Claude login status when login is in progress
+  useEffect(() => {
+    if (!claudeLoginInProgress) {
+      if (claudePollRef.current) {
+        clearInterval(claudePollRef.current);
+        claudePollRef.current = null;
+      }
+      return;
+    }
+
+    claudePollRef.current = setInterval(async () => {
+      try {
+        const session = await fetchClaudeLoginStatus();
+        setClaudeLoginSession(session);
+
+        if (session.status === 'authenticated' || session.status === 'error') {
+          setClaudeLoginInProgress(false);
+          // Refresh auth status
+          void fetchStatus();
+        }
+      } catch {
+        // Ignore poll errors
+      }
+    }, 2000);
+
+    return () => {
+      if (claudePollRef.current) {
+        clearInterval(claudePollRef.current);
+        claudePollRef.current = null;
+      }
+    };
+  }, [claudeLoginInProgress, fetchStatus]);
+
   const startLogin = useCallback(async (): Promise<GitHubLoginResponse | null> => {
     try {
       const response = await startGithubLogin();
       setLoginSession({ status: 'pending', deviceCode: response.deviceCode });
       setLoginInProgress(true);
+      return response;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const startClaudeAuth = useCallback(async (): Promise<ClaudeLoginResponse | null> => {
+    try {
+      const response = await startClaudeLogin();
+      setClaudeLoginSession({ status: 'pending', authUrl: response.authUrl });
+      setClaudeLoginInProgress(true);
       return response;
     } catch {
       return null;
@@ -89,5 +139,15 @@ export function useAuthStatus(): UseAuthStatusResult {
     }
   }, [fetchStatus]);
 
-  return { authStatus, loginSession, loading, loginInProgress, startLogin, logout };
+  return {
+    authStatus,
+    loginSession,
+    claudeLoginSession,
+    loading,
+    loginInProgress,
+    claudeLoginInProgress,
+    startLogin,
+    startClaudeAuth,
+    logout,
+  };
 }

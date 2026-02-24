@@ -14,9 +14,12 @@ const mockUseAuthStatus = vi.mocked(useAuthStatus);
 const defaultHookResult = {
   authStatus: null,
   loginSession: null,
+  claudeLoginSession: null,
   loading: false,
   loginInProgress: false,
+  claudeLoginInProgress: false,
   startLogin: vi.fn().mockResolvedValue(null),
+  startClaudeAuth: vi.fn().mockResolvedValue(null),
   logout: vi.fn().mockResolvedValue(undefined),
 };
 
@@ -48,6 +51,7 @@ describe('SettingsPage', () => {
     const badges = screen.getAllByText('Disconnected');
     expect(badges).toHaveLength(2);
     expect(screen.getByText('Connect GitHub')).toBeInTheDocument();
+    expect(screen.getByText('Connect Claude')).toBeInTheDocument();
   });
 
   it('shows connected state with username when GitHub is authenticated', () => {
@@ -90,6 +94,22 @@ describe('SettingsPage', () => {
     expect(screen.getByText('ABCD-1234')).toBeInTheDocument();
     expect(screen.getByText('Open GitHub')).toBeInTheDocument();
     expect(screen.getByText('Waiting for authorization...')).toBeInTheDocument();
+  });
+
+  it('shows Claude auth URL during login flow', () => {
+    mockUseAuthStatus.mockReturnValue({
+      ...defaultHookResult,
+      authStatus: {
+        github: { authenticated: false, username: null },
+        claude: { authenticated: false },
+      },
+      claudeLoginInProgress: true,
+      claudeLoginSession: { status: 'pending', authUrl: 'https://console.anthropic.com/auth' },
+    });
+    renderWithProviders(<SettingsPage />);
+    expect(screen.getByText('Open Authorization Page')).toBeInTheDocument();
+    const waitingTexts = screen.getAllByText('Waiting for authorization...');
+    expect(waitingTexts.length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows loading state', () => {

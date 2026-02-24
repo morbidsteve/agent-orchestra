@@ -121,6 +121,17 @@ export interface GitHubLoginStatus {
   error?: string | null;
 }
 
+export interface ClaudeLoginResponse {
+  authUrl: string | null;
+  status: string;
+}
+
+export interface ClaudeLoginStatus {
+  status: string;
+  authUrl?: string | null;
+  error?: string | null;
+}
+
 export interface OrchestraState {
   executions: Execution[];
   agents: AgentInfo[];
