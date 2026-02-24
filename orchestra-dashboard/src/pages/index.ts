@@ -1,5 +1,7 @@
+export { ConsolePage } from './ConsolePage.tsx';
 export { DashboardPage } from './DashboardPage.tsx';
 export { ExecutionDetailPage } from './ExecutionDetailPage.tsx';
+export { AgentOfficePage } from './AgentOfficePage.tsx';
 export { AgentsPage } from './AgentsPage.tsx';
 export { FindingsPage } from './FindingsPage.tsx';
 export { NewExecutionPage } from './NewExecutionPage.tsx';

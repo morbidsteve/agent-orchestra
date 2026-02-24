@@ -1,8 +1,8 @@
 import { NavLink } from 'react-router-dom';
 import {
-  Activity,
+  MessageSquare,
   LayoutDashboard,
-  Plus,
+  Building2,
   Users,
   AlertTriangle,
   Settings,
@@ -13,8 +13,9 @@ import { cn } from '../../lib/cn.ts';
 import { version } from '../../../package.json';
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/new', label: 'New Execution', icon: Plus },
+  { to: '/', label: 'Console', icon: MessageSquare },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/office', label: 'Agent Office', icon: Building2 },
   { to: '/agents', label: 'Agents', icon: Users },
   { to: '/findings', label: 'Findings', icon: AlertTriangle },
   { to: '/settings', label: 'Settings', icon: Settings },
@@ -28,7 +29,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-5 py-5 border-b border-surface-600">
         <div className="flex items-center gap-2.5">
-          <Activity className="h-6 w-6 text-accent-blue" />
+          <MessageSquare className="h-6 w-6 text-accent-blue" />
           <div>
             <h1 className="text-base font-semibold text-gray-100">Agent Orchestra</h1>
             <p className="text-xs text-gray-500">Multi-Agent System</p>

@@ -1,0 +1,106 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import type {
+  WsConsoleMessage,
+  Screenshot,
+} from '../lib/types.ts';
+
+export interface UseConsoleWebSocketReturn {
+  messages: WsConsoleMessage[];
+  connected: boolean;
+  currentPhase: string | null;
+  agentStatuses: Record<string, { visualStatus: string; currentTask: string }>;
+  screenshots: Screenshot[];
+  businessEval: Record<string, unknown> | null;
+}
+
+export function useConsoleWebSocket(conversationId: string | null): UseConsoleWebSocketReturn {
+  const [messages, setMessages] = useState<WsConsoleMessage[]>([]);
+  const [connected, setConnected] = useState(false);
+  const [currentPhase, setCurrentPhase] = useState<string | null>(null);
+  const [agentStatuses, setAgentStatuses] = useState<Record<string, { visualStatus: string; currentTask: string }>>({});
+  const [screenshots, setScreenshots] = useState<Screenshot[]>([]);
+  const [businessEval, setBusinessEval] = useState<Record<string, unknown> | null>(null);
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const handleMessage = useCallback((msg: WsConsoleMessage) => {
+    setMessages(prev => [...prev, msg]);
+
+    switch (msg.type) {
+      case 'agent-status':
+        setAgentStatuses(prev => ({
+          ...prev,
+          [msg.agentRole]: {
+            visualStatus: msg.visualStatus,
+            currentTask: msg.currentTask,
+          },
+        }));
+        break;
+      case 'screenshot':
+        setScreenshots(prev => [...prev, msg.screenshot]);
+        break;
+      case 'business-eval':
+        setBusinessEval({ section: msg.section, status: msg.status, data: msg.data });
+        break;
+      case 'execution-start':
+        setCurrentPhase('plan');
+        break;
+      default:
+        break;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/api/ws/console/${encodeURIComponent(conversationId)}`;
+
+    function connect() {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setConnected(true);
+      };
+
+      ws.onmessage = (event: MessageEvent) => {
+        const msg = JSON.parse(event.data as string) as WsConsoleMessage;
+        handleMessage(msg);
+      };
+
+      ws.onclose = () => {
+        setConnected(false);
+        reconnectTimeoutRef.current = setTimeout(connect, 3000);
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    }
+
+    connect();
+
+    return () => {
+      clearTimeout(reconnectTimeoutRef.current);
+      wsRef.current?.close();
+      // Reset all state in cleanup so next conversationId starts fresh
+      setMessages([]);
+      setConnected(false);
+      setCurrentPhase(null);
+      setAgentStatuses({});
+      setScreenshots([]);
+      setBusinessEval(null);
+    };
+  }, [conversationId, handleMessage]);
+
+  return {
+    messages,
+    connected,
+    currentPhase,
+    agentStatuses,
+    screenshots,
+    businessEval,
+  };
+}

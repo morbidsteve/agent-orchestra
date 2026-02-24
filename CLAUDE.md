@@ -82,6 +82,21 @@ Nothing is "done" until:
 - [ ] Code follows existing project conventions
 - [ ] Changes are summarized clearly
 
+## Auto-Ship Rule
+
+When all quality gates pass after completing one or more features or bug fixes, **automatically
+create a branch, commit, open a PR, and merge it** — do NOT wait for the user to ask. This is
+the final step of every successful pipeline. The workflow is:
+
+1. Create a feature branch from `master` (e.g., `feat/console-ux-overhaul`, `fix/sidebar-nav`)
+2. Stage and commit all changed files with a clear commit message
+3. Push the branch and open a PR via `gh pr create` with a summary + test plan
+4. Merge the PR via `gh pr merge --merge` (use merge commit, not squash or rebase)
+5. Report the merged PR URL to the user
+
+If the merge fails (e.g., branch protection, merge conflicts), report the PR URL and the
+error — do not silently retry or force-push.
+
 ## Project Context
 
 Read any CLAUDE.md or README.md in the working repository for project-specific conventions,
