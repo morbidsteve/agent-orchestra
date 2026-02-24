@@ -59,9 +59,10 @@ describe('OfficeCanvas', () => {
     );
 
     const svg = container.querySelector('svg');
+    // Each active connection renders 3 lines (glow + cable + pulse), each idle renders 1
+    // 1 active connection (3 lines) + 1 idle connection (1 line) = 4 lines total
     const lines = svg!.querySelectorAll('line');
-    // Should show 2 explicit connections, not the 5 defaults
-    expect(lines.length).toBe(2);
+    expect(lines.length).toBe(4);
   });
 
   it('shows "Ready" badge on orchestrator when idle', () => {
@@ -78,13 +79,13 @@ describe('OfficeCanvas', () => {
         })}
       />,
     );
-    // OrchestratorDesk shows "Delegating to N agents" when agents are present
+    // CommandCenter shows "Delegating to N agents" when agents are present
     expect(screen.getByText('Delegating to 5 agents')).toBeInTheDocument();
   });
 
   it('shows role labels on idle agent workstation cards', () => {
     render(<OfficeCanvas officeState={makeOfficeState()} />);
-    // WorkstationCard bottom bar shows agent.role with dashes replaced by spaces
+    // DeskWorkstation bottom bar shows agent.role with dashes replaced by spaces
     expect(screen.getByText('developer')).toBeInTheDocument();
     expect(screen.getByText('developer 2')).toBeInTheDocument();
     expect(screen.getByText('tester')).toBeInTheDocument();

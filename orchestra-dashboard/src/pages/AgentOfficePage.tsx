@@ -1,4 +1,4 @@
-import { Building2 } from 'lucide-react';
+import { Landmark } from 'lucide-react';
 import { useOfficeState } from '../hooks/useOfficeState.ts';
 import { OfficeCanvas } from '../components/features/office/OfficeCanvas.tsx';
 import { OfficeStatusBar } from '../components/features/office/OfficeStatusBar.tsx';
@@ -35,7 +35,7 @@ export function AgentOfficePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Building2 className="h-6 w-6 text-blue-400" />
+          <Landmark className="h-6 w-6 text-amber-400/80" />
           <h1 className="text-2xl font-bold text-gray-100">Agent Office</h1>
         </div>
         <OfficeStatusBar

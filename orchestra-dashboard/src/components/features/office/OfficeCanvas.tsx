@@ -1,5 +1,5 @@
-import { WorkstationCard } from './WorkstationCard.tsx';
-import { OrchestratorDesk } from './OrchestratorDesk.tsx';
+import { DeskWorkstation } from './WorkstationCard.tsx';
+import { CommandCenter } from './OrchestratorDesk.tsx';
 import { ConnectionLine } from './ConnectionLine.tsx';
 import { getStablePosition } from '../../../lib/layoutEngine.ts';
 import type { OfficeState, AgentConnection } from '../../../lib/types.ts';
@@ -19,6 +19,22 @@ const AGENT_COLORS: Record<string, string> = {
   'devsecops': '#f97316',
   'business-dev': '#a855f7',
 };
+
+/** Zone labels positioned around the office floor */
+const ZONE_LABELS: { text: string; x: string; y: string }[] = [
+  { text: 'DEV BAY', x: '18%', y: '22%' },
+  { text: 'TEST LAB', x: '78%', y: '22%' },
+  { text: 'SECURITY', x: '78%', y: '78%' },
+  { text: 'STRATEGY', x: '18%', y: '78%' },
+];
+
+/** Decorative potted plants */
+const PLANTS: { x: string; y: string }[] = [
+  { x: '5%', y: '5%' },
+  { x: '93%', y: '5%' },
+  { x: '5%', y: '93%' },
+  { x: '93%', y: '93%' },
+];
 
 /** Default idle connections showing team structure at rest */
 const DEFAULT_IDLE_CONNECTIONS: AgentConnection[] = [
@@ -62,15 +78,165 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
       : DEFAULT_IDLE_CONNECTIONS;
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-lg border border-surface-600 bg-surface-900">
-      {/* Subtle grid background */}
+    <div
+      className="relative h-full w-full overflow-hidden rounded-lg"
+      style={{
+        backgroundColor: '#1a1d23',
+        border: '1px solid #2a2d35',
+      }}
+    >
+      {/* Carpet-tile grid background */}
       <div
-        className="absolute inset-0 opacity-5"
+        className="absolute inset-0"
         style={{
-          backgroundImage: 'radial-gradient(circle, #6b7280 1px, transparent 1px)',
-          backgroundSize: '24px 24px',
+          backgroundImage: `
+            linear-gradient(to right, rgba(37,40,48,0.15) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(37,40,48,0.15) 1px, transparent 1px)
+          `,
+          backgroundSize: '40px 40px',
         }}
       />
+
+      {/* Warm ambient gradient overlay */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: 'radial-gradient(ellipse at 50% 50%, rgba(120,90,50,0.04) 0%, transparent 65%)',
+        }}
+      />
+
+      {/* Zone partition lines (glass walls) */}
+      <div className="absolute inset-0" style={{ pointerEvents: 'none' }}>
+        {/* Vertical center partition */}
+        <div
+          className="absolute top-[15%] bottom-[15%] left-1/2"
+          style={{
+            width: '1px',
+            background: 'linear-gradient(to bottom, transparent, rgba(100,116,139,0.12) 30%, rgba(100,116,139,0.12) 70%, transparent)',
+          }}
+        />
+        {/* Horizontal center partition */}
+        <div
+          className="absolute left-[15%] right-[15%] top-1/2"
+          style={{
+            height: '1px',
+            background: 'linear-gradient(to right, transparent, rgba(100,116,139,0.12) 30%, rgba(100,116,139,0.12) 70%, transparent)',
+          }}
+        />
+        {/* Command center boundary (rounded rect) */}
+        <div
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl"
+          style={{
+            width: '22%',
+            height: '22%',
+            border: '1px dashed rgba(100,116,139,0.1)',
+          }}
+        />
+      </div>
+
+      {/* Zone labels (floor stencils) */}
+      {ZONE_LABELS.map(z => (
+        <span
+          key={z.text}
+          className="absolute text-[9px] font-mono tracking-widest select-none"
+          style={{
+            left: z.x,
+            top: z.y,
+            color: 'rgba(100,116,139,0.18)',
+            transform: 'translate(-50%, -50%)',
+          }}
+        >
+          {z.text}
+        </span>
+      ))}
+
+      {/* Decorative plants */}
+      {PLANTS.map((p, i) => (
+        <div
+          key={i}
+          className="absolute select-none"
+          style={{
+            left: p.x,
+            top: p.y,
+            transform: 'translate(-50%, -50%)',
+          }}
+        >
+          {/* Pot */}
+          <div className="flex flex-col items-center">
+            <div
+              className="rounded-full"
+              style={{
+                width: '10px',
+                height: '10px',
+                backgroundColor: 'rgba(34,120,60,0.25)',
+                boxShadow: '0 0 4px rgba(34,120,60,0.1)',
+              }}
+            />
+            <div
+              style={{
+                width: '4px',
+                height: '3px',
+                backgroundColor: 'rgba(120,80,40,0.25)',
+                borderRadius: '0 0 2px 2px',
+              }}
+            />
+          </div>
+        </div>
+      ))}
+
+      {/* Whiteboard (top-right area) */}
+      <div
+        className="absolute select-none"
+        style={{
+          right: '8%',
+          top: '10%',
+          width: '32px',
+          height: '20px',
+          backgroundColor: 'rgba(200,200,210,0.06)',
+          border: '1px solid rgba(200,200,210,0.08)',
+          borderRadius: '2px',
+        }}
+      >
+        {/* Whiteboard dots (notes) */}
+        <div className="flex gap-1 p-1">
+          <span className="block h-1 w-1 rounded-full bg-gray-500/20" />
+          <span className="block h-1 w-3 rounded-full bg-gray-500/15" />
+        </div>
+        <div className="flex gap-1 px-1">
+          <span className="block h-1 w-2 rounded-full bg-gray-500/10" />
+        </div>
+      </div>
+
+      {/* Coffee station (bottom-left area) */}
+      <div
+        className="absolute select-none"
+        style={{
+          left: '8%',
+          bottom: '10%',
+          transform: 'translate(-50%, 50%)',
+        }}
+      >
+        <div className="flex items-end gap-1">
+          {/* Coffee machine */}
+          <div
+            style={{
+              width: '8px',
+              height: '12px',
+              backgroundColor: 'rgba(100,80,60,0.2)',
+              borderRadius: '1px',
+            }}
+          />
+          {/* Cup */}
+          <div
+            style={{
+              width: '5px',
+              height: '5px',
+              backgroundColor: 'rgba(160,132,92,0.15)',
+              borderRadius: '0 0 2px 2px',
+            }}
+          />
+        </div>
+      </div>
 
       {/* SVG connection layer - viewBox maps to percentage coords */}
       <svg
@@ -99,7 +265,7 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
         })}
       </svg>
 
-      {/* Agent workstation cards - positioned absolutely using layout engine coordinates */}
+      {/* Agent desk workstations - positioned absolutely using layout engine coordinates */}
       <div className="absolute inset-0" style={{ zIndex: 2 }}>
         {agents.map((agent) => {
           const pos = agentPositions.get(agent.role);
@@ -116,7 +282,7 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
                 animation: 'fadeScaleIn 0.3s ease-out',
               }}
             >
-              <WorkstationCard
+              <DeskWorkstation
                 agent={agent}
                 position={pos}
                 outputLines={outputLines}
@@ -127,9 +293,9 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
         })}
       </div>
 
-      {/* Orchestrator desk at center */}
+      {/* Command Center at the middle */}
       <div style={{ zIndex: 3 }}>
-        <OrchestratorDesk
+        <CommandCenter
           currentPhase={currentPhase}
           agentCount={agents.length}
           isActive={isActive}

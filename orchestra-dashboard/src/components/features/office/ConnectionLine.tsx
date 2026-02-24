@@ -8,75 +8,66 @@ interface ConnectionLineProps {
   label?: string;
 }
 
-const MARKER_ID_PREFIX = 'arrowhead';
-
-export function ConnectionLine({ x1, y1, x2, y2, color, active, label }: ConnectionLineProps) {
-  const markerId = `${MARKER_ID_PREFIX}-${x1}-${y1}-${x2}-${y2}`;
-  const midX = (x1 + x2) / 2;
-  const midY = (y1 + y2) / 2;
-
-  const activeStyle: React.CSSProperties = active
-    ? {
-        strokeDasharray: '8 4',
-        animation: 'connectionDash 0.5s linear infinite',
-      }
-    : {
-        strokeDasharray: '6 4',
-        opacity: 0.3,
-      };
+export function ConnectionLine({ x1, y1, x2, y2, color, active }: ConnectionLineProps) {
+  const filterId = `glow-${x1}-${y1}-${x2}-${y2}`;
 
   return (
     <g>
-      {/* Inline keyframes via style element */}
+      {/* Glow filter for active connections */}
       {active && (
-        <style>{`
-          @keyframes connectionDash {
-            to { stroke-dashoffset: -12; }
-          }
-        `}</style>
+        <defs>
+          <filter id={filterId} x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" />
+          </filter>
+        </defs>
       )}
 
-      {/* Arrow marker definition */}
-      <defs>
-        <marker
-          id={markerId}
-          markerWidth="8"
-          markerHeight="6"
-          refX="8"
-          refY="3"
-          orient="auto"
-          markerUnits="strokeWidth"
-        >
-          <polygon
-            points="0 0, 8 3, 0 6"
-            fill={active ? color : '#6b7280'}
-          />
-        </marker>
-      </defs>
+      {/* Outer glow line (active only) */}
+      {active && (
+        <line
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke={color}
+          strokeWidth={4}
+          opacity={0.15}
+          filter={`url(#${filterId})`}
+          strokeLinecap="round"
+        />
+      )}
 
-      {/* Connection line */}
+      {/* Main cable line */}
       <line
         x1={x1}
         y1={y1}
         x2={x2}
         y2={y2}
-        stroke={active ? color : '#6b7280'}
-        strokeWidth={active ? 2 : 1}
-        markerEnd={`url(#${markerId})`}
-        style={activeStyle}
+        stroke={active ? color : '#333842'}
+        strokeWidth={active ? 2.5 : 1}
+        opacity={active ? 0.7 : 0.25}
+        strokeLinecap="round"
       />
 
-      {/* Label at midpoint */}
-      {label && (
-        <text
-          x={midX}
-          y={midY - 8}
-          textAnchor="middle"
-          className="fill-gray-400 text-[10px]"
-          style={{ fontSize: '10px' }}
+      {/* Subtle pulse animation overlay for active connections */}
+      {active && (
+        <line
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke={color}
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          opacity={0.4}
         >
-          {label}
-        </text>
+          <animate
+            attributeName="opacity"
+            values="0.2;0.6;0.2"
+            dur="2s"
+            repeatCount="indefinite"
+          />
+        </line>
       )}
     </g>
   );
