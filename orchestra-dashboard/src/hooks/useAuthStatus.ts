@@ -132,11 +132,16 @@ export function useAuthStatus(): UseAuthStatusResult {
   const submitClaudeCode = useCallback(async (code: string): Promise<boolean> => {
     try {
       const result = await submitClaudeAuthCode(code);
-      return result.status === 'submitted';
+      if (result.status === 'authenticated') {
+        setClaudeLoginInProgress(false);
+        void fetchStatus();
+        return true;
+      }
+      return result.status !== 'error';
     } catch {
       return false;
     }
-  }, []);
+  }, [fetchStatus]);
 
   const logout = useCallback(async () => {
     try {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Bot, ExternalLink, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '../../../lib/cn.ts';
 import type { AuthStatus, ClaudeLoginStatus } from '../../../lib/types.ts';
@@ -9,53 +9,44 @@ export interface ClaudeAuthCardProps {
   loading: boolean;
   claudeLoginInProgress: boolean;
   onLogin: () => void;
-  onSubmitCode?: (code: string) => void;
+  onSubmitCode?: (code: string) => Promise<void>;
   error: string | null;
   compact?: boolean;
 }
 
-function CodeInput({ onSubmit }: { onSubmit: (code: string) => void }) {
+function CodeInput({ onSubmit, error }: { onSubmit: (code: string) => Promise<void>; error?: string | null }) {
   const [code, setCode] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const [retryMessage, setRetryMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (!submitted) return;
-    const timer = setTimeout(() => {
-      setSubmitted(false);
-      setCode('');
-      setRetryMessage('Code verification timed out. Please try again.');
-    }, 15000);
-    return () => clearTimeout(timer);
-  }, [submitted]);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (code.trim()) {
-      setRetryMessage(null);
-      onSubmit(code.trim());
-      setSubmitted(true);
+    if (!code.trim() || busy) return;
+    setBusy(true);
+    try {
+      await onSubmit(code.trim());
+    } finally {
+      setBusy(false);
     }
   };
 
-  if (submitted) {
+  if (busy) {
     return (
       <div className="flex items-center gap-2 text-sm text-gray-400">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Verifying code...
+        Exchanging code for credentials...
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2">
+    <form onSubmit={(e) => void handleSubmit(e)} className="space-y-2">
       <label htmlFor="claude-auth-code" className="block text-sm text-gray-300">
-        Paste the code from the authorization page:
+        After authorizing, paste the code shown on the Anthropic page:
       </label>
-      {retryMessage && (
-        <div className="flex items-center gap-2 text-sm text-amber-400">
+      {error && (
+        <div className="flex items-center gap-2 text-sm text-red-400">
           <AlertCircle className="h-4 w-4 shrink-0" />
-          {retryMessage}
+          {error}
         </div>
       )}
       <div className="flex gap-2">
@@ -64,7 +55,7 @@ function CodeInput({ onSubmit }: { onSubmit: (code: string) => void }) {
           type="text"
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          placeholder="Enter code"
+          placeholder="Paste authorization code"
           className="flex-1 rounded-lg border border-surface-600 bg-surface-700 px-3 py-2 text-sm text-gray-200 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-blue/50 focus:border-accent-blue"
           autoFocus
         />
@@ -113,7 +104,7 @@ export function ClaudeAuthCard({
       ) : claudeLoginInProgress && claudeAuthUrl ? (
         <div className="space-y-4">
           <p className="text-sm text-gray-300">
-            Open the link below to authorize Claude Code:
+            1. Open the link below and authorize Claude Code.
           </p>
           <a
             href={claudeAuthUrl}
@@ -124,13 +115,12 @@ export function ClaudeAuthCard({
             Open Authorization Page
             <ExternalLink className="h-4 w-4" />
           </a>
+          <p className="text-sm text-gray-300">
+            2. After authorizing, you&apos;ll see a code — paste it below.
+          </p>
           {onSubmitCode && (
-            <CodeInput onSubmit={onSubmitCode} />
+            <CodeInput onSubmit={onSubmitCode} error={error || claudeLoginSession?.error} />
           )}
-          <div className="flex items-center gap-2 text-sm text-gray-400">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Waiting for authorization...
-          </div>
         </div>
       ) : (
         <div className="space-y-3">
