@@ -34,20 +34,32 @@ class SendMessageRequest(BaseModel):
 # Workflow → pipeline mapping (mirrors routes/executions.py)
 # ──────────────────────────────────────────────────────────────────────────────
 
-WORKFLOW_PHASES: dict[str, list[str]] = {
-    "full-pipeline": ["plan", "develop", "test", "security", "report"],
-    "code-review": ["plan", "develop", "test", "security", "report"],
-    "security-audit": ["plan", "security", "report"],
-    "feature-eval": ["plan", "develop", "report"],
-    "quick-fix": ["develop", "test", "report"],
-}
-
-PHASE_AGENTS: dict[str, str] = {
-    "plan": "developer",
-    "develop": "developer",
-    "test": "tester",
-    "security": "devsecops",
-    "report": "developer",
+WORKFLOW_PIPELINES: dict[str, list[list[tuple[str, str]]]] = {
+    "full-pipeline": [
+        [("plan", "developer")],
+        [("develop", "developer"), ("develop-2", "developer-2")],
+        [("test", "tester"), ("security", "devsecops")],
+        [("report", "developer")],
+    ],
+    "code-review": [
+        [("develop", "developer"), ("test", "tester"), ("security", "devsecops")],
+        [("report", "developer")],
+    ],
+    "security-audit": [
+        [("plan", "developer")],
+        [("security", "devsecops")],
+        [("report", "developer")],
+    ],
+    "feature-eval": [
+        [("plan", "developer")],
+        [("develop", "developer"), ("business-eval", "business-dev")],
+        [("report", "developer")],
+    ],
+    "quick-fix": [
+        [("develop", "developer")],
+        [("test", "tester"), ("security", "devsecops")],
+        [("report", "developer")],
+    ],
 }
 
 # Patterns that suggest a feature evaluation request
@@ -109,18 +121,19 @@ def _create_execution_record(
     exec_id = store.next_execution_id()
     now = datetime.now(timezone.utc).isoformat()
 
-    phases = WORKFLOW_PHASES.get(workflow, WORKFLOW_PHASES["full-pipeline"])
-    pipeline = [
-        {
-            "phase": phase,
-            "status": "pending",
-            "agentRole": PHASE_AGENTS.get(phase),
-            "startedAt": None,
-            "completedAt": None,
-            "output": [],
-        }
-        for phase in phases
-    ]
+    groups = WORKFLOW_PIPELINES.get(workflow, WORKFLOW_PIPELINES["full-pipeline"])
+    pipeline = []
+    for group_idx, group in enumerate(groups):
+        for phase, agent_role in group:
+            pipeline.append({
+                "phase": phase,
+                "group": group_idx,
+                "status": "pending",
+                "agentRole": agent_role,
+                "startedAt": None,
+                "completedAt": None,
+                "output": [],
+            })
 
     # Create an isolated project directory so agents don't work inside
     # the Orchestra codebase itself.
@@ -173,9 +186,11 @@ async def _handle_user_message(
             f"I'll analyze the market, competition, and provide an ICE score."
         )
     else:
+        groups = WORKFLOW_PIPELINES.get(workflow, WORKFLOW_PIPELINES["full-pipeline"])
+        phase_names = [phase for group in groups for phase, _ in group]
         response_text = (
             f"Starting {workflow} execution for: {text}\n"
-            f"Phases: {', '.join(WORKFLOW_PHASES.get(workflow, []))}"
+            f"Phases: {', '.join(phase_names)}"
         )
 
     exec_start_msg = _make_message(
