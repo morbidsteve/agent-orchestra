@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 export interface WsOutputMessage {
   type: 'output';
@@ -22,13 +22,23 @@ export interface WsCompleteMessage {
   status: string;
 }
 
-export type WsMessage = WsOutputMessage | WsPhaseMessage | WsFindingMessage | WsCompleteMessage;
+export interface WsClarificationMessage {
+  type: 'clarification';
+  questionId: string;
+  question: string;
+  options?: string[];
+  required: boolean;
+}
+
+export type WsMessage = WsOutputMessage | WsPhaseMessage | WsFindingMessage | WsCompleteMessage | WsClarificationMessage;
 
 interface UseWebSocketResult {
   lines: string[];
   currentPhase: string | null;
   status: string | null;
   connected: boolean;
+  pendingQuestion: WsClarificationMessage | null;
+  sendAnswer: (questionId: string, answer: string) => void;
 }
 
 export function useWebSocket(executionId: string | null): UseWebSocketResult {
@@ -36,8 +46,20 @@ export function useWebSocket(executionId: string | null): UseWebSocketResult {
   const [currentPhase, setCurrentPhase] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState<WsClarificationMessage | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const sendAnswer = useCallback(function sendAnswer(questionId: string, answer: string) {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'clarification-response',
+        questionId,
+        answer,
+      }));
+      setPendingQuestion(null);
+    }
+  }, []);
 
   useEffect(() => {
     if (!executionId) return;
@@ -67,6 +89,9 @@ export function useWebSocket(executionId: string | null): UseWebSocketResult {
           case 'complete':
             setStatus(msg.status);
             break;
+          case 'clarification':
+            setPendingQuestion(msg as WsClarificationMessage);
+            break;
         }
       };
 
@@ -88,5 +113,5 @@ export function useWebSocket(executionId: string | null): UseWebSocketResult {
     };
   }, [executionId]);
 
-  return { lines, currentPhase, status, connected };
+  return { lines, currentPhase, status, connected, pendingQuestion, sendAnswer };
 }

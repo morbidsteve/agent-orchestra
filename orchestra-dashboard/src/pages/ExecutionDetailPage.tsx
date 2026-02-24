@@ -6,6 +6,7 @@ import {
   AgentActivityCard,
   StreamingOutput,
 } from '../components/features/execution/index.ts';
+import { ClarificationCard } from '../components/features/console/ClarificationCard.tsx';
 import { useWebSocket } from '../hooks/useWebSocket.ts';
 import { ArrowLeft, Wifi, WifiOff } from 'lucide-react';
 
@@ -16,7 +17,7 @@ export function ExecutionDetailPage() {
 
   // Subscribe to WebSocket for live updates on running executions
   const isRunning = execution?.status === 'running' || execution?.status === 'queued';
-  const { lines: liveLines, connected } = useWebSocket(isRunning ? id ?? null : null);
+  const { lines: liveLines, connected, pendingQuestion, sendAnswer } = useWebSocket(isRunning ? id ?? null : null);
 
   if (!execution) {
     return (
@@ -53,6 +54,16 @@ export function ExecutionDetailPage() {
             ) : null}
           </div>
           <StreamingOutput lines={liveLines} streaming={isRunning && connected} />
+          {pendingQuestion && (
+            <div className="mt-3">
+              <ClarificationCard
+                question={pendingQuestion.question}
+                options={pendingQuestion.options}
+                required={pendingQuestion.required}
+                onReply={(answer) => sendAnswer(pendingQuestion.questionId, answer)}
+              />
+            </div>
+          )}
         </div>
       )}
 

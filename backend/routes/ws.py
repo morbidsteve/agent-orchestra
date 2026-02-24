@@ -8,6 +8,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from backend import store
 from backend.config import settings
+from backend.routes.internal import cleanup_question
 
 router = APIRouter(tags=["websocket"])
 
@@ -42,13 +43,33 @@ async def execution_ws(websocket: WebSocket, execution_id: str) -> None:
         store.websocket_connections[execution_id] = set()
     store.websocket_connections[execution_id].add(websocket)
 
+    # Replay any unanswered pending questions for this execution
+    for qid in store.pending_questions_by_execution.get(execution_id, []):
+        q = store.pending_questions.get(qid)
+        if q and q["answer"] is None:
+            await websocket.send_text(json.dumps({
+                "type": "clarification",
+                "questionId": q["id"],
+                "question": q["question"],
+                "options": q["options"],
+                "required": True,
+            }))
+
     try:
         while True:
             # Keep the connection alive; read any incoming messages
             data = await websocket.receive_text()
-            # Future: handle client→server commands here
             try:
-                _message = json.loads(data)
+                message = json.loads(data)
+                # Handle clarification responses from the dashboard
+                if message.get("type") == "clarification-response":
+                    qid = message.get("questionId", "")
+                    answer = message.get("answer", "")
+                    entry = store.pending_questions.get(qid)
+                    if entry and entry["answer"] is None and entry.get("execution_id") == execution_id:
+                        entry["answer"] = answer
+                        entry["event"].set()
+                        cleanup_question(qid)
             except json.JSONDecodeError:
                 pass
     except WebSocketDisconnect:

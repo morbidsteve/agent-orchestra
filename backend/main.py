@@ -17,6 +17,7 @@ from backend.routes import (
     executions,
     filesystem,
     findings,
+    internal,
     screenshots,
     system,
     ws,
@@ -56,6 +57,7 @@ app.include_router(filesystem.router)
 app.include_router(conversations.router)
 app.include_router(screenshots.router)
 app.include_router(system.router)
+app.include_router(internal.router)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

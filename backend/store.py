@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 from typing import Any
 
 from fastapi import WebSocket
@@ -12,6 +13,8 @@ from fastapi import WebSocket
 # State containers (module-level — persist across requests)
 # ──────────────────────────────────────────────────────────────────────────────
 
+internal_api_token: str = secrets.token_urlsafe(32)
+
 executions: dict[str, dict[str, Any]] = {}
 agents: dict[str, dict[str, Any]] = {}
 findings: dict[str, dict[str, Any]] = {}
@@ -19,6 +22,8 @@ conversations: dict[str, dict[str, Any]] = {}
 screenshots: dict[str, dict[str, Any]] = {}
 websocket_connections: dict[str, set[WebSocket]] = {}
 console_connections: dict[str, set[WebSocket]] = {}
+pending_questions: dict[str, dict[str, Any]] = {}
+pending_questions_by_execution: dict[str, list[str]] = {}
 
 _execution_counter: int = 0
 _conversation_counter: int = 0
