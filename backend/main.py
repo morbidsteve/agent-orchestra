@@ -18,6 +18,7 @@ from backend.routes import (
     filesystem,
     findings,
     internal,
+    internal_dynamic,
     screenshots,
     system,
     ws,
@@ -58,6 +59,8 @@ app.include_router(conversations.router)
 app.include_router(screenshots.router)
 app.include_router(system.router)
 app.include_router(internal.router)
+app.include_router(internal_dynamic.router)
+app.include_router(executions._codebase_router)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

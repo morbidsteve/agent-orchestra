@@ -1,4 +1,4 @@
-import type { Execution, AgentInfo, Finding, WorkflowType, ProjectSource, AuthStatus, GitHubLoginResponse, GitHubLoginStatus, ClaudeLoginResponse, ClaudeLoginStatus, BrowseResponse, Conversation, Screenshot } from './types.ts';
+import type { Execution, AgentInfo, Finding, WorkflowType, ProjectSource, AuthStatus, GitHubLoginResponse, GitHubLoginStatus, ClaudeLoginResponse, ClaudeLoginStatus, BrowseResponse, Conversation, Screenshot, Codebase, DynamicAgent, FileActivityEvent } from './types.ts';
 export type { AgentInfo };
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -131,6 +131,8 @@ export function createConversation(params: {
   text: string;
   projectSource?: ProjectSource;
   model?: string;
+  github_url?: string;
+  codebase_id?: string;
 }): Promise<Conversation> {
   return apiFetch<Conversation>('/api/conversations', {
     method: 'POST',
@@ -140,6 +142,8 @@ export function createConversation(params: {
 
 export function sendMessage(conversationId: string, params: {
   text: string;
+  github_url?: string;
+  codebase_id?: string;
 }): Promise<Conversation> {
   return apiFetch<Conversation>(
     `/api/conversations/${encodeURIComponent(conversationId)}/messages`,
@@ -183,4 +187,31 @@ export function submitQuestionAnswer(questionId: string, answer: string): Promis
       body: JSON.stringify({ answer }),
     },
   );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Codebases (v0.5.0)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export function fetchCodebases(): Promise<Codebase[]> {
+  return apiFetch<Codebase[]>('/api/codebases');
+}
+
+export function createCodebase(name: string, gitUrl?: string, path?: string): Promise<Codebase> {
+  return apiFetch<Codebase>('/api/codebases', {
+    method: 'POST',
+    body: JSON.stringify({ name, git_url: gitUrl, path }),
+  });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Dynamic Agents & File Activities (v0.5.0)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export function fetchDynamicAgents(executionId: string): Promise<DynamicAgent[]> {
+  return apiFetch<DynamicAgent[]>(`/api/executions/${encodeURIComponent(executionId)}/agents`);
+}
+
+export function fetchFileActivities(executionId: string): Promise<FileActivityEvent[]> {
+  return apiFetch<FileActivityEvent[]>(`/api/executions/${encodeURIComponent(executionId)}/files`);
 }

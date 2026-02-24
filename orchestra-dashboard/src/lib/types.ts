@@ -350,6 +350,82 @@ export interface WsCompleteMessage {
   status: string;
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Dynamic Agent types (v0.5.0)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface DynamicAgent {
+  id: string;
+  executionId: string;
+  role: string;
+  name: string;
+  task: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  output: string[];
+  filesModified: string[];
+  filesRead: string[];
+  color: string;
+  icon: string;
+  spawnedAt: string;
+  completedAt: string | null;
+}
+
+export interface FileActivityEvent {
+  file: string;
+  action: 'read' | 'write' | 'edit' | 'create' | 'delete';
+  agentId: string;
+  agentName: string;
+  timestamp: string;
+}
+
+export interface FileTreeNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  children?: FileTreeNode[];
+  lastActivity?: FileActivityEvent;
+  isActive: boolean;
+}
+
+export interface Codebase {
+  id: string;
+  name: string;
+  path: string;
+  gitUrl: string | null;
+  executionIds: string[];
+  createdAt: string;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Dynamic Agent WebSocket message types (v0.5.0)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface WsAgentSpawnMessage {
+  type: 'agent-spawn';
+  agent: DynamicAgent;
+}
+
+export interface WsAgentOutputMessage {
+  type: 'agent-output';
+  agentId: string;
+  line: string;
+}
+
+export interface WsAgentCompleteMessage {
+  type: 'agent-complete';
+  agentId: string;
+  status: 'completed' | 'failed';
+  filesModified: string[];
+}
+
+export interface WsFileActivityMessage {
+  type: 'file-activity';
+  file: string;
+  action: 'read' | 'write' | 'edit' | 'create' | 'delete';
+  agentId: string;
+  agentName: string;
+}
+
 export type WsConsoleMessage =
   | WsConsoleTextMessage
   | WsClarificationMessage
@@ -359,4 +435,8 @@ export type WsConsoleMessage =
   | WsBusinessEvalMessage
   | WsExecutionStartMessage
   | WsOutputMessage
-  | WsCompleteMessage;
+  | WsCompleteMessage
+  | WsAgentSpawnMessage
+  | WsAgentOutputMessage
+  | WsAgentCompleteMessage
+  | WsFileActivityMessage;

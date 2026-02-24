@@ -25,9 +25,16 @@ console_connections: dict[str, set[WebSocket]] = {}
 pending_questions: dict[str, dict[str, Any]] = {}
 pending_questions_by_execution: dict[str, list[str]] = {}
 
+# Dynamic agent tracking
+dynamic_agents: dict[str, dict[str, dict[str, Any]]] = {}  # exec_id → agent_id → agent dict
+file_activities: dict[str, list[dict[str, Any]]] = {}  # exec_id → [{file, action, agent_id, agent_name, timestamp}]
+codebases: dict[str, dict[str, Any]] = {}  # codebase_id → {id, name, path, gitUrl, executionIds, createdAt}
+
 _execution_counter: int = 0
 _conversation_counter: int = 0
 _screenshot_counter: int = 0
+_agent_counter: int = 0
+_codebase_counter: int = 0
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -54,6 +61,20 @@ def next_screenshot_id() -> str:
     global _screenshot_counter
     _screenshot_counter += 1
     return f"ss-{_screenshot_counter:03d}"
+
+
+def next_agent_id() -> str:
+    """Return the next dynamic agent ID: agent-0001, agent-0002, etc."""
+    global _agent_counter
+    _agent_counter += 1
+    return f"agent-{_agent_counter:04d}"
+
+
+def next_codebase_id() -> str:
+    """Return the next codebase ID: codebase-001, codebase-002, etc."""
+    global _codebase_counter
+    _codebase_counter += 1
+    return f"codebase-{_codebase_counter:03d}"
 
 
 # ──────────────────────────────────────────────────────────────────────────────

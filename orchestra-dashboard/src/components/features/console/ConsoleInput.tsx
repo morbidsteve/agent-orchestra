@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, ChevronDown, ChevronUp, GitBranch } from 'lucide-react';
 import { cn } from '../../../lib/cn.ts';
 import { MODELS } from '../../../lib/constants.ts';
+import { useConversationContext } from '../../../context/ConversationContext.tsx';
 
 interface ConsoleInputProps {
   onSend: (text: string) => void;
@@ -14,6 +15,7 @@ export function ConsoleInput({ onSend, disabled, model, onModelChange }: Console
   const [text, setText] = useState('');
   const [showOptions, setShowOptions] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { githubUrl, setGithubUrl } = useConversationContext();
 
   const autoResize = useCallback(() => {
     const ta = textareaRef.current;
@@ -57,20 +59,34 @@ export function ConsoleInput({ onSend, disabled, model, onModelChange }: Console
       </button>
 
       {showOptions && (
-        <div className="flex items-center gap-3 mb-2 pb-2 border-b border-surface-600">
+        <div className="space-y-2 mb-2 pb-2 border-b border-surface-600">
           {/* Model selector */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label htmlFor="model-select" className="text-xs text-gray-500">Model</label>
+              <select
+                id="model-select"
+                value={model}
+                onChange={(e) => onModelChange(e.target.value)}
+                className="bg-surface-900 border border-surface-600 rounded-md px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-accent-blue"
+              >
+                {MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* GitHub URL input */}
           <div className="flex items-center gap-2">
-            <label htmlFor="model-select" className="text-xs text-gray-500">Model</label>
-            <select
-              id="model-select"
-              value={model}
-              onChange={(e) => onModelChange(e.target.value)}
-              className="bg-surface-900 border border-surface-600 rounded-md px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-accent-blue"
-            >
-              {MODELS.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
+            <GitBranch className="h-3.5 w-3.5 text-gray-500 shrink-0" />
+            <input
+              type="url"
+              value={githubUrl}
+              onChange={(e) => setGithubUrl(e.target.value)}
+              placeholder="GitHub URL (optional)"
+              className="flex-1 bg-surface-900 border border-surface-600 rounded-md px-2 py-1 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-accent-blue"
+            />
           </div>
         </div>
       )}

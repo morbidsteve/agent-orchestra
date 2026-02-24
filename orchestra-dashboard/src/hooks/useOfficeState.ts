@@ -5,8 +5,10 @@ import type {
   OfficeState,
   AgentVisualStatus,
   WsConsoleMessage,
+  DynamicAgent,
 } from '../lib/types.ts';
 import { fetchExecution } from '../lib/api.ts';
+import { calculateAgentPositions } from '../lib/layoutEngine.ts';
 
 /** Maps backend pipeline phase names to agent roles for office visualization. */
 const PHASE_AGENTS: Record<string, string> = {
@@ -27,22 +29,37 @@ const DEFAULT_AGENTS: AgentNode[] = [
   { role: 'business-dev', name: 'Business Dev', color: '#a855f7', icon: 'Briefcase', visualStatus: 'idle', currentTask: '' },
 ];
 
+/** Convert a DynamicAgent from a spawn message into an AgentNode for office visualization. */
+function dynamicAgentToNode(agent: DynamicAgent): AgentNode {
+  // Positions are available via calculateAgentPositions but AgentNode doesn't store x/y;
+  // the office component uses the agent index to look up position from the layout engine.
+  return {
+    role: agent.id, // Use unique ID as role for dynamic agents
+    name: agent.name,
+    color: agent.color,
+    icon: agent.icon,
+    visualStatus: agent.status === 'running' ? 'working' : 'idle',
+    currentTask: agent.task,
+  };
+}
+
 /**
  * Derives office visualization state from WebSocket messages for a given execution.
  * Initializes agents in idle state and updates based on agent-status and agent-connection messages.
+ * Supports dynamic agents via agent-spawn/agent-output/agent-complete messages,
+ * while maintaining backward compatibility with legacy agent-status messages.
  */
 export function useOfficeState(executionId: string | null): OfficeState {
   // Use a version key to force state reset when executionId changes
   const versionKey = useMemo(() => executionId ?? 'none', [executionId]);
   const [stateVersion, setStateVersion] = useState(versionKey);
-  const [agents, setAgents] = useState<AgentNode[]>(DEFAULT_AGENTS);
+  const [agents, setAgents] = useState<AgentNode[]>([]);
   const [connections, setConnections] = useState<AgentConnection[]>([]);
   const [currentPhase, setCurrentPhase] = useState<string | null>(null);
-
   // Reset state when executionId changes by detecting version mismatch during render
   if (stateVersion !== versionKey) {
     setStateVersion(versionKey);
-    setAgents(DEFAULT_AGENTS);
+    setAgents([]);
     setConnections([]);
     setCurrentPhase(null);
   }
@@ -52,9 +69,13 @@ export function useOfficeState(executionId: string | null): OfficeState {
 
   const handleMessage = useCallback((msg: WsConsoleMessage) => {
     switch (msg.type) {
+      // === Legacy agent-status messages (backward compatibility) ===
       case 'agent-status':
-        setAgents(prev =>
-          prev.map(agent =>
+        // Legacy pipeline mode — ensure DEFAULT_AGENTS are populated
+        setAgents(prev => {
+          // In legacy mode, ensure DEFAULT_AGENTS are present
+          const working = prev.length > 0 ? prev : DEFAULT_AGENTS;
+          return working.map(agent =>
             agent.role === msg.agentRole
               ? {
                   ...agent,
@@ -62,8 +83,8 @@ export function useOfficeState(executionId: string | null): OfficeState {
                   currentTask: msg.currentTask,
                 }
               : agent,
-          ),
-        );
+          );
+        });
         break;
       case 'agent-connection':
         setConnections(prev => {
@@ -85,6 +106,41 @@ export function useOfficeState(executionId: string | null): OfficeState {
           return [...prev, connection];
         });
         break;
+
+      // === Dynamic agent messages (v0.5.0) ===
+      case 'agent-spawn': {
+        const spawnAgent = msg.agent;
+        setAgents(prev => {
+          if (prev.find(a => a.role === spawnAgent.id)) return prev;
+          const index = prev.length;
+          // Trigger position calculation so layout engine is primed
+          calculateAgentPositions(index + 1);
+          return [...prev, dynamicAgentToNode(spawnAgent)];
+        });
+        break;
+      }
+      case 'agent-output': {
+        setAgents(prev =>
+          prev.map(agent =>
+            agent.role === msg.agentId
+              ? { ...agent, visualStatus: 'working' as AgentVisualStatus, currentTask: agent.currentTask || 'Processing...' }
+              : agent,
+          ),
+        );
+        break;
+      }
+      case 'agent-complete': {
+        const completeStatus: AgentVisualStatus = msg.status === 'completed' ? 'done' : 'error';
+        setAgents(prev =>
+          prev.map(agent =>
+            agent.role === msg.agentId
+              ? { ...agent, visualStatus: completeStatus, currentTask: '' }
+              : agent,
+          ),
+        );
+        break;
+      }
+
       case 'phase':
         if ('phase' in msg && 'status' in msg) {
           const phaseMsg = msg as { type: 'phase'; phase: string; status: string };
@@ -113,6 +169,8 @@ export function useOfficeState(executionId: string | null): OfficeState {
       .then(execution => {
         if (cancelled || !execution?.pipeline) return;
 
+        // Legacy pipeline initialization — use DEFAULT_AGENTS for backward compatibility
+        // Legacy pipeline mode — ensure DEFAULT_AGENTS are populated
         const initialAgents = DEFAULT_AGENTS.map(agent => ({ ...agent }));
         let runningPhase: string | null = null;
         const initialConnections: AgentConnection[] = [];

@@ -143,3 +143,24 @@ export const MODELS = [
   { id: 'sonnet', name: 'Claude Sonnet 4.5', description: 'Balanced performance and speed' },
   { id: 'haiku', name: 'Claude Haiku 4.5', description: 'Fastest, good for simple tasks' },
 ];
+
+// Dynamic agent role colors (used when agents are spawned dynamically)
+export const DYNAMIC_ROLE_COLORS: Record<string, string> = {
+  developer: '#3b82f6',
+  tester: '#22c55e',
+  'security-reviewer': '#f97316',
+  devsecops: '#f97316',
+  documentation: '#8b5cf6',
+  'business-dev': '#a855f7',
+  default: '#6b7280',
+};
+
+export const DYNAMIC_ROLE_ICONS: Record<string, string> = {
+  developer: 'Code2',
+  tester: 'TestTube2',
+  'security-reviewer': 'Shield',
+  devsecops: 'Shield',
+  documentation: 'FileText',
+  'business-dev': 'TrendingUp',
+  default: 'Bot',
+};

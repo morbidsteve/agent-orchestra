@@ -3,6 +3,7 @@ import { ConversationPanel } from '../components/features/console/ConversationPa
 import { ContextPanel } from '../components/features/console/ContextPanel.tsx';
 import { useConversationContext } from '../context/ConversationContext.tsx';
 import { useConsoleWebSocket } from '../hooks/useConsoleWebSocket.ts';
+import { useDynamicAgents } from '../hooks/useDynamicAgents.ts';
 
 export function ConsolePage() {
   const {
@@ -19,6 +20,7 @@ export function ConsolePage() {
   const executionId = conversation?.activeExecutionId ?? null;
 
   const { messages: wsMessages, executionStatus } = useConsoleWebSocket(conversationId);
+  const { agents: dynamicAgents, fileTree, activeFiles } = useDynamicAgents(wsMessages);
 
   const handleSend = useCallback(async (text: string) => {
     if (conversation) {
@@ -50,6 +52,9 @@ export function ConsolePage() {
           executionId={executionId}
           wsMessages={wsMessages}
           executionStatus={executionStatus}
+          fileTree={fileTree}
+          activeFiles={activeFiles}
+          dynamicAgents={dynamicAgents}
         />
       </div>
     </div>

@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from backend import store
 from backend.config import settings
 from backend.models import ConversationMessageRequest, _to_camel
+from backend.services.dynamic_orchestrator import run_dynamic_execution
 from backend.services.orchestrator import run_execution
 
 router = APIRouter(prefix="/api", tags=["conversations"])
@@ -201,8 +202,15 @@ async def _handle_user_message(
     )
     conversation["messages"].append(exec_start_msg)
 
-    # Launch execution in background
-    asyncio.create_task(run_execution(exec_id))
+    # Launch execution in background — prefer dynamic orchestrator with fallback
+    async def _run_with_fallback(eid: str) -> None:
+        try:
+            await run_dynamic_execution(eid)
+        except Exception:
+            # Fall back to the fixed pipeline if dynamic orchestrator fails to start
+            await run_execution(eid)
+
+    asyncio.create_task(_run_with_fallback(exec_id))
 
     return exec_start_msg
 
