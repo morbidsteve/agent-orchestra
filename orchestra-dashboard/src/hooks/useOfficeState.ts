@@ -21,13 +21,44 @@ const PHASE_AGENTS: Record<string, string> = {
   report: 'developer',
 };
 
-const DEFAULT_AGENTS: AgentNode[] = [
-  { role: 'developer', name: 'Developer', color: '#3b82f6', icon: 'Terminal', visualStatus: 'idle', currentTask: '' },
-  { role: 'developer-2', name: 'Developer 2', color: '#06b6d4', icon: 'Code', visualStatus: 'idle', currentTask: '' },
-  { role: 'tester', name: 'Tester', color: '#22c55e', icon: 'FlaskConical', visualStatus: 'idle', currentTask: '' },
-  { role: 'devsecops', name: 'DevSecOps', color: '#f97316', icon: 'Shield', visualStatus: 'idle', currentTask: '' },
-  { role: 'business-dev', name: 'Business Dev', color: '#a855f7', icon: 'Briefcase', visualStatus: 'idle', currentTask: '' },
-];
+/** Color lookup for known agent roles. */
+const ROLE_COLORS: Record<string, string> = {
+  developer: '#3b82f6',
+  'developer-2': '#06b6d4',
+  tester: '#22c55e',
+  devsecops: '#f97316',
+  'business-dev': '#a855f7',
+};
+
+/** Icon lookup for known agent roles. */
+const ROLE_ICONS: Record<string, string> = {
+  developer: 'Terminal',
+  'developer-2': 'Code',
+  tester: 'FlaskConical',
+  devsecops: 'Shield',
+  'business-dev': 'Briefcase',
+};
+
+/** Derive a human-readable name from a role slug (e.g. "business-dev" -> "Business Dev"). */
+function roleToName(role: string): string {
+  return role.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/** Create an AgentNode dynamically for a given role. */
+function createAgentNode(
+  role: string,
+  visualStatus: AgentVisualStatus = 'idle',
+  currentTask = '',
+): AgentNode {
+  return {
+    role,
+    name: roleToName(role),
+    color: ROLE_COLORS[role] || '#6b7280',
+    icon: ROLE_ICONS[role] || 'Bot',
+    visualStatus,
+    currentTask,
+  };
+}
 
 /** Convert a DynamicAgent from a spawn message into an AgentNode for office visualization. */
 function dynamicAgentToNode(agent: DynamicAgent): AgentNode {
@@ -71,19 +102,29 @@ export function useOfficeState(executionId: string | null): OfficeState {
     switch (msg.type) {
       // === Legacy agent-status messages (backward compatibility) ===
       case 'agent-status':
-        // Legacy pipeline mode — ensure DEFAULT_AGENTS are populated
         setAgents(prev => {
-          // In legacy mode, ensure DEFAULT_AGENTS are present
-          const working = prev.length > 0 ? prev : DEFAULT_AGENTS;
-          return working.map(agent =>
-            agent.role === msg.agentRole
-              ? {
-                  ...agent,
-                  visualStatus: msg.visualStatus as AgentVisualStatus,
-                  currentTask: msg.currentTask,
-                }
-              : agent,
-          );
+          const idx = prev.findIndex(a => a.role === msg.agentRole);
+          if (idx >= 0) {
+            // Update existing agent
+            const updated = [...prev];
+            updated[idx] = {
+              ...updated[idx],
+              visualStatus: msg.visualStatus as AgentVisualStatus,
+              currentTask: msg.currentTask,
+            };
+            return updated;
+          }
+          // Create new agent dynamically
+          const index = prev.length;
+          calculateAgentPositions(index + 1);
+          return [
+            ...prev,
+            createAgentNode(
+              msg.agentRole,
+              msg.visualStatus as AgentVisualStatus,
+              msg.currentTask,
+            ),
+          ];
         });
         break;
       case 'agent-connection':
@@ -169,32 +210,35 @@ export function useOfficeState(executionId: string | null): OfficeState {
       .then(execution => {
         if (cancelled || !execution?.pipeline) return;
 
-        // Legacy pipeline initialization — use DEFAULT_AGENTS for backward compatibility
-        // Legacy pipeline mode — ensure DEFAULT_AGENTS are populated
-        const initialAgents = DEFAULT_AGENTS.map(agent => ({ ...agent }));
+        // Build agents dynamically from pipeline steps
+        const agentMap = new Map<string, AgentNode>();
         let runningPhase: string | null = null;
         const initialConnections: AgentConnection[] = [];
 
         execution.pipeline.forEach((step, index) => {
           const agentRole = step.agentRole || PHASE_AGENTS[step.phase] || 'developer';
-          const agentIdx = initialAgents.findIndex(a => a.role === agentRole);
+
+          // Ensure agent exists in the map
+          if (!agentMap.has(agentRole)) {
+            agentMap.set(agentRole, createAgentNode(agentRole));
+          }
+
+          const agent = agentMap.get(agentRole)!;
 
           if (step.status === 'running') {
             runningPhase = step.phase;
-            if (agentIdx >= 0) {
-              initialAgents[agentIdx] = {
-                ...initialAgents[agentIdx],
-                visualStatus: 'working',
-                currentTask: `Executing ${step.phase} phase`,
-              };
-            }
+            agentMap.set(agentRole, {
+              ...agent,
+              visualStatus: 'working',
+              currentTask: `Executing ${step.phase} phase`,
+            });
           } else if (step.status === 'completed') {
-            if (agentIdx >= 0 && initialAgents[agentIdx].visualStatus === 'idle') {
-              initialAgents[agentIdx] = {
-                ...initialAgents[agentIdx],
+            if (agent.visualStatus === 'idle') {
+              agentMap.set(agentRole, {
+                ...agent,
                 visualStatus: 'done',
                 currentTask: '',
-              };
+              });
             }
             // Add connection to next phase
             if (index < execution.pipeline.length - 1) {
@@ -210,6 +254,10 @@ export function useOfficeState(executionId: string | null): OfficeState {
             }
           }
         });
+
+        const initialAgents = [...agentMap.values()];
+        // Prime the layout engine with the agent count
+        calculateAgentPositions(initialAgents.length);
 
         setAgents(initialAgents);
         setConnections(initialConnections);
@@ -231,15 +279,22 @@ export function useOfficeState(executionId: string | null): OfficeState {
     const wsUrl = `${protocol}//${window.location.host}/api/ws/${encodeURIComponent(executionId)}`;
 
     function connect() {
+      if (cancelled) return;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
+      ws.onopen = () => {
+        if (cancelled) { ws.close(); return; }
+      };
+
       ws.onmessage = (event: MessageEvent) => {
+        if (cancelled) return;
         const msg = JSON.parse(event.data as string) as WsConsoleMessage;
         handleMessage(msg);
       };
 
       ws.onclose = () => {
+        if (cancelled) return;
         reconnectTimeoutRef.current = setTimeout(connect, 3000);
       };
 
@@ -253,7 +308,14 @@ export function useOfficeState(executionId: string | null): OfficeState {
     return () => {
       cancelled = true;
       clearTimeout(reconnectTimeoutRef.current);
-      wsRef.current?.close();
+      const ws = wsRef.current;
+      if (ws) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        } else if (ws.readyState === WebSocket.CONNECTING) {
+          ws.onopen = () => ws.close();
+        }
+      }
     };
   }, [executionId, handleMessage]);
 

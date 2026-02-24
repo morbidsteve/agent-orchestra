@@ -44,6 +44,15 @@ PHASE_AGENTS: dict[str, str] = {
     "report": "developer",
 }
 
+# Role metadata for dynamic agent-spawn events (color, icon, display name)
+PHASE_AGENTS_INFO: dict[str, dict[str, str]] = {
+    "developer": {"name": "Developer", "color": "#3b82f6", "icon": "Terminal"},
+    "developer-2": {"name": "Developer 2", "color": "#06b6d4", "icon": "Code"},
+    "tester": {"name": "Tester", "color": "#22c55e", "icon": "FlaskConical"},
+    "devsecops": {"name": "DevSecOps", "color": "#f97316", "icon": "Shield"},
+    "business-dev": {"name": "Business Dev", "color": "#a855f7", "icon": "Briefcase"},
+}
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Phase-specific prompts for the Claude Code CLI
 # ──────────────────────────────────────────────────────────────────────────────
@@ -278,6 +287,27 @@ async def _run_phase(execution_id: str, step: dict[str, Any]) -> None:
 
     # Mark agent as busy
     _set_agent_status(agent_role, "busy", execution_id)
+
+    # Broadcast agent-spawn so Office view shows agents appearing dynamically
+    agent_info = PHASE_AGENTS_INFO.get(agent_role, {})
+    await broadcast_both(execution_id, {
+        "type": "agent-spawn",
+        "agent": {
+            "id": agent_role,
+            "executionId": execution_id,
+            "role": agent_role,
+            "name": agent_info.get("name", agent_role),
+            "task": f"Executing {phase} phase",
+            "status": "running",
+            "output": [],
+            "filesModified": [],
+            "filesRead": [],
+            "color": agent_info.get("color", "#6b7280"),
+            "icon": agent_info.get("icon", "Bot"),
+            "spawnedAt": datetime.now(timezone.utc).isoformat(),
+            "completedAt": None,
+        },
+    })
 
     # Broadcast agent-status: working
     await broadcast_both(execution_id, {
