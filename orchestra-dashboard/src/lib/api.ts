@@ -151,6 +151,14 @@ export function sendMessage(conversationId: string, params: {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// System
+// ──────────────────────────────────────────────────────────────────────────────
+
+export function triggerSystemUpdate(): Promise<{ status: string; message?: string }> {
+  return apiFetch<{ status: string; message?: string }>('/api/system/update', { method: 'POST' });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Screenshots
 // ──────────────────────────────────────────────────────────────────────────────
 
