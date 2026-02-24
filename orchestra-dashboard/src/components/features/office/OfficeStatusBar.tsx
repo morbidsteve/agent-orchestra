@@ -43,15 +43,26 @@ export function OfficeStatusBar({ executionId, currentPhase, startedAt }: Office
   }, [startedAt]);
 
   const currentPhaseIndex = currentPhase ? PHASES.indexOf(currentPhase) : -1;
+  const isIdle = !executionId;
+
+  /** Colors corresponding to each pipeline phase for idle display */
+  const PHASE_IDLE_COLORS = ['#3b82f6', '#06b6d4', '#22c55e', '#f97316', '#a855f7'];
 
   return (
     <div className="flex items-center gap-4 rounded-lg border border-surface-600 bg-surface-800 px-4 py-2">
-      {/* Execution ID */}
+      {/* Execution ID or Ready label */}
       <div className="flex items-center gap-2">
         <span className="text-xs text-gray-500">Execution:</span>
-        <span className="text-xs font-mono text-gray-300">
-          {executionId || 'No active execution'}
-        </span>
+        {isIdle ? (
+          <span className="flex items-center gap-1.5 text-xs font-mono text-gray-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-500/70" />
+            Ready
+          </span>
+        ) : (
+          <span className="text-xs font-mono text-gray-300">
+            {executionId}
+          </span>
+        )}
       </div>
 
       {/* Separator */}
@@ -73,9 +84,13 @@ export function OfficeStatusBar({ executionId, currentPhase, startedAt }: Office
               'h-2 w-2 rounded-full transition-colors duration-300',
               index < currentPhaseIndex && 'bg-green-400',
               index === currentPhaseIndex && 'bg-blue-400 animate-pulse',
-              index > currentPhaseIndex && 'bg-surface-600',
-              currentPhaseIndex === -1 && 'bg-surface-600',
+              index > currentPhaseIndex && !isIdle && 'bg-surface-600',
             )}
+            style={
+              isIdle && currentPhaseIndex === -1
+                ? { backgroundColor: PHASE_IDLE_COLORS[index], opacity: 0.25 }
+                : undefined
+            }
             title={phase}
           />
         ))}
@@ -88,7 +103,7 @@ export function OfficeStatusBar({ executionId, currentPhase, startedAt }: Office
       <div className="flex items-center gap-2">
         <span className="text-xs text-gray-500">Elapsed:</span>
         <span className="text-xs font-mono text-gray-300">
-          {startedAt ? formatElapsedTime(elapsed) : '--:--'}
+          {startedAt ? formatElapsedTime(elapsed) : isIdle ? 'Idle' : '--:--'}
         </span>
       </div>
     </div>

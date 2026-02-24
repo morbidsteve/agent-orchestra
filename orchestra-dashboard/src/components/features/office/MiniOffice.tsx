@@ -2,7 +2,7 @@ import { Terminal, Code, FlaskConical, Shield, Briefcase, CheckCircle, XCircle }
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../../lib/cn.ts';
 import { ConnectionLine } from './ConnectionLine.tsx';
-import type { OfficeState, AgentNode } from '../../../lib/types.ts';
+import type { OfficeState, AgentNode, AgentConnection } from '../../../lib/types.ts';
 
 interface MiniOfficeProps {
   officeState: OfficeState;
@@ -26,6 +26,15 @@ const AGENT_COLORS: Record<string, string> = {
   'devsecops': '#f97316',
   'business-dev': '#a855f7',
 };
+
+/** Default idle connections for mini view */
+const MINI_IDLE_CONNECTIONS: AgentConnection[] = [
+  { from: 'orchestrator', to: 'developer', label: '', active: false, dataFlow: 'handoff' },
+  { from: 'orchestrator', to: 'developer-2', label: '', active: false, dataFlow: 'handoff' },
+  { from: 'orchestrator', to: 'tester', label: '', active: false, dataFlow: 'handoff' },
+  { from: 'orchestrator', to: 'devsecops', label: '', active: false, dataFlow: 'handoff' },
+  { from: 'orchestrator', to: 'business-dev', label: '', active: false, dataFlow: 'handoff' },
+];
 
 const MINI_ICONS: Record<string, LucideIcon> = {
   developer: Terminal,
@@ -86,6 +95,9 @@ export function MiniOffice({ officeState }: MiniOfficeProps) {
   const { agents, connections, currentPhase, executionId } = officeState;
   const isActive = executionId !== null && currentPhase !== null;
 
+  // Show default idle connections when no WebSocket connections exist
+  const displayConnections = connections.length > 0 ? connections : MINI_IDLE_CONNECTIONS;
+
   return (
     <div className="relative h-48 w-full overflow-hidden rounded-lg border border-surface-600 bg-surface-900">
       {/* SVG connection layer */}
@@ -95,7 +107,7 @@ export function MiniOffice({ officeState }: MiniOfficeProps) {
         preserveAspectRatio="none"
         style={{ pointerEvents: 'none' }}
       >
-        {connections.map((conn) => {
+        {displayConnections.map((conn) => {
           const fromPos = AGENT_POSITIONS[conn.from] || AGENT_POSITIONS['orchestrator'];
           const toPos = AGENT_POSITIONS[conn.to] || AGENT_POSITIONS['orchestrator'];
           const color = AGENT_COLORS[conn.from] || '#6b7280';
@@ -145,11 +157,13 @@ export function MiniOffice({ officeState }: MiniOfficeProps) {
           <div
             className={cn(
               'flex h-12 w-12 items-center justify-center rounded-full border transition-all duration-300',
-              isActive ? 'border-blue-500/50' : 'border-surface-600',
+              'border-blue-500/50',
             )}
             style={{
               background: 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(168,85,247,0.1))',
-              boxShadow: isActive ? '0 0 12px rgba(59,130,246,0.2)' : undefined,
+              boxShadow: isActive
+                ? '0 0 12px rgba(59,130,246,0.2)'
+                : '0 0 8px rgba(59,130,246,0.1)',
             }}
           >
             {isActive && (
@@ -164,7 +178,7 @@ export function MiniOffice({ officeState }: MiniOfficeProps) {
             <div
               className={cn(
                 'h-2 w-2 rounded-full',
-                isActive ? 'bg-blue-400 animate-pulse' : 'bg-gray-500',
+                isActive ? 'bg-blue-400 animate-pulse' : 'bg-blue-400/50',
               )}
             />
           </div>
