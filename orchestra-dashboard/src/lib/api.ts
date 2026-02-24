@@ -1,4 +1,4 @@
-import type { Execution, AgentInfo, Finding, WorkflowType, ProjectSource, AuthStatus, GitHubLoginResponse, GitHubLoginStatus } from './types.ts';
+import type { Execution, AgentInfo, Finding, WorkflowType, ProjectSource, AuthStatus, GitHubLoginResponse, GitHubLoginStatus, BrowseResponse } from './types.ts';
 export type { AgentInfo };
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -91,4 +91,11 @@ export function deleteAgent(role: string): Promise<{ deleted: string }> {
   return apiFetch<{ deleted: string }>(`/api/agents/${encodeURIComponent(role)}`, {
     method: 'DELETE',
   });
+}
+
+export function browseFilesystem(path?: string): Promise<BrowseResponse> {
+  const params = new URLSearchParams();
+  if (path) params.set('path', path);
+  const query = params.toString();
+  return apiFetch<BrowseResponse>(query ? `/api/filesystem/browse?${query}` : '/api/filesystem/browse');
 }

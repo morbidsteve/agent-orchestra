@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend import store
 from backend.config import settings
-from backend.routes import agents, auth, executions, findings, ws
+from backend.routes import agents, auth, executions, filesystem, findings, ws
 
 
 @asynccontextmanager
@@ -42,6 +42,7 @@ app.include_router(agents.router)
 app.include_router(findings.router)
 app.include_router(ws.router)
 app.include_router(auth.router)
+app.include_router(filesystem.router)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
