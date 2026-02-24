@@ -81,6 +81,13 @@ export function fetchClaudeLoginStatus(): Promise<ClaudeLoginStatus> {
   return apiFetch<ClaudeLoginStatus>('/api/auth/claude/status');
 }
 
+export function submitClaudeAuthCode(code: string): Promise<{ status: string; error?: string }> {
+  return apiFetch<{ status: string; error?: string }>('/api/auth/claude/callback', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+}
+
 export function createAgent(params: {
   name: string;
   description: string;

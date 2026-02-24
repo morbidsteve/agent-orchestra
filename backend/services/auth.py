@@ -416,6 +416,27 @@ async def _monitor_claude_login(process: asyncio.subprocess.Process) -> None:
             pass
 
 
+async def submit_claude_auth_code(code: str) -> dict:
+    """Write the user-provided auth code to the claude login process stdin."""
+    global _claude_login_session
+
+    if not _claude_login_session:
+        return {"status": "error", "error": "No active login session"}
+
+    process = _claude_login_session.get("process")
+    if not process or process.returncode is not None:
+        return {"status": "error", "error": "Login process is not running"}
+
+    try:
+        # Write the code followed by a newline to the process stdin
+        process.stdin.write(f"{code}\n".encode())
+        await process.stdin.drain()
+        return {"status": "submitted"}
+    except Exception as e:
+        logger.exception("Failed to submit auth code")
+        return {"status": "error", "error": str(e)}
+
+
 def get_claude_login_status() -> dict:
     """Return the current Claude login session state."""
     if _claude_login_session is None:

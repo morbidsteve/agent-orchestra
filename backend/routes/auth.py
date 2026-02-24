@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from pydantic import BaseModel
+
 from backend.services.auth import (
     get_auth_status,
     get_claude_login_status,
@@ -11,6 +13,7 @@ from backend.services.auth import (
     github_logout,
     start_claude_login,
     start_github_login,
+    submit_claude_auth_code,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -56,3 +59,13 @@ async def claude_login() -> dict:
 async def claude_login_status() -> dict:
     """Poll the current Claude login session progress."""
     return get_claude_login_status()
+
+
+class ClaudeAuthCodeRequest(BaseModel):
+    code: str
+
+
+@router.post("/claude/callback")
+async def claude_auth_callback(request: ClaudeAuthCodeRequest) -> dict:
+    """Submit the authentication code from the browser back to the Claude CLI."""
+    return await submit_claude_auth_code(request.code)

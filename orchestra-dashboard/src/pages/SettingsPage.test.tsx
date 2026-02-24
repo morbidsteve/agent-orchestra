@@ -20,6 +20,7 @@ const defaultHookResult = {
   claudeLoginInProgress: false,
   startLogin: vi.fn().mockResolvedValue(null),
   startClaudeAuth: vi.fn().mockResolvedValue(null),
+  submitClaudeCode: vi.fn().mockResolvedValue(false),
   logout: vi.fn().mockResolvedValue(undefined),
 };
 

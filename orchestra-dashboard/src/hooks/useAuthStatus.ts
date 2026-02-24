@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { AuthStatus, GitHubLoginResponse, GitHubLoginStatus, ClaudeLoginResponse, ClaudeLoginStatus } from '../lib/types.ts';
-import { fetchAuthStatus, startGithubLogin, fetchGithubLoginStatus, githubLogout, startClaudeLogin, fetchClaudeLoginStatus } from '../lib/api.ts';
+import { fetchAuthStatus, startGithubLogin, fetchGithubLoginStatus, githubLogout, startClaudeLogin, fetchClaudeLoginStatus, submitClaudeAuthCode } from '../lib/api.ts';
 
 interface UseAuthStatusResult {
   authStatus: AuthStatus | null;
@@ -11,6 +11,7 @@ interface UseAuthStatusResult {
   claudeLoginInProgress: boolean;
   startLogin: () => Promise<GitHubLoginResponse | null>;
   startClaudeAuth: () => Promise<ClaudeLoginResponse | null>;
+  submitClaudeCode: (code: string) => Promise<boolean>;
   logout: () => Promise<void>;
 }
 
@@ -128,6 +129,15 @@ export function useAuthStatus(): UseAuthStatusResult {
     }
   }, []);
 
+  const submitClaudeCode = useCallback(async (code: string): Promise<boolean> => {
+    try {
+      const result = await submitClaudeAuthCode(code);
+      return result.status === 'submitted';
+    } catch {
+      return false;
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await githubLogout();
@@ -148,6 +158,7 @@ export function useAuthStatus(): UseAuthStatusResult {
     claudeLoginInProgress,
     startLogin,
     startClaudeAuth,
+    submitClaudeCode,
     logout,
   };
 }

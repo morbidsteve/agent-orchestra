@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Bot, ExternalLink, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '../../../lib/cn.ts';
 import type { AuthStatus, ClaudeLoginStatus } from '../../../lib/types.ts';
@@ -8,8 +9,57 @@ export interface ClaudeAuthCardProps {
   loading: boolean;
   claudeLoginInProgress: boolean;
   onLogin: () => void;
+  onSubmitCode?: (code: string) => void;
   error: string | null;
   compact?: boolean;
+}
+
+function CodeInput({ onSubmit }: { onSubmit: (code: string) => void }) {
+  const [code, setCode] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (code.trim()) {
+      onSubmit(code.trim());
+      setSubmitted(true);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-gray-400">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Verifying code...
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-2">
+      <label htmlFor="claude-auth-code" className="block text-sm text-gray-300">
+        Paste the code from the authorization page:
+      </label>
+      <div className="flex gap-2">
+        <input
+          id="claude-auth-code"
+          type="text"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="Enter code"
+          className="flex-1 rounded-lg border border-surface-600 bg-surface-700 px-3 py-2 text-sm text-gray-200 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-blue/50 focus:border-accent-blue"
+          autoFocus
+        />
+        <button
+          type="submit"
+          disabled={!code.trim()}
+          className="rounded-lg bg-accent-blue px-4 py-2 text-sm font-medium text-white hover:bg-accent-blue/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Submit
+        </button>
+      </div>
+    </form>
+  );
 }
 
 export function ClaudeAuthCard({
@@ -18,6 +68,7 @@ export function ClaudeAuthCard({
   loading,
   claudeLoginInProgress,
   onLogin,
+  onSubmitCode,
   error,
   compact = false,
 }: ClaudeAuthCardProps) {
@@ -55,6 +106,9 @@ export function ClaudeAuthCard({
             Open Authorization Page
             <ExternalLink className="h-4 w-4" />
           </a>
+          {onSubmitCode && (
+            <CodeInput onSubmit={onSubmitCode} />
+          )}
           <div className="flex items-center gap-2 text-sm text-gray-400">
             <Loader2 className="h-4 w-4 animate-spin" />
             Waiting for authorization...
