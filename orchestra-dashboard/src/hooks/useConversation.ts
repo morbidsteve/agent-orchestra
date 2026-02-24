@@ -17,7 +17,7 @@ export function useConversation(): UseConversationReturn {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [model, setModel] = useState('claude-sonnet-4-5-20250929');
+  const [model, setModel] = useState('sonnet');
 
   const startConversation = useCallback(async (text: string, projectSource?: ProjectSource, selectedModel?: string) => {
     setIsLoading(true);

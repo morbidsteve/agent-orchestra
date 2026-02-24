@@ -137,7 +137,7 @@ export const STATUS_LABELS: Record<string, string> = {
 };
 
 export const MODELS = [
-  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most capable, best for complex tasks' },
-  { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Balanced performance and speed' },
-  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest, good for simple tasks' },
+  { id: 'opus', name: 'Claude Opus 4.6', description: 'Most capable, best for complex tasks' },
+  { id: 'sonnet', name: 'Claude Sonnet 4.5', description: 'Balanced performance and speed' },
+  { id: 'haiku', name: 'Claude Haiku 4.5', description: 'Fastest, good for simple tasks' },
 ];

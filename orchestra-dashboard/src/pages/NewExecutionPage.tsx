@@ -24,7 +24,7 @@ export function NewExecutionPage() {
   const { startExecution } = useOrchestra();
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowType>('full-pipeline');
   const [task, setTask] = useState('');
-  const [selectedModel, setSelectedModel] = useState('claude-opus-4-6');
+  const [selectedModel, setSelectedModel] = useState('opus');
   const [target, setTarget] = useState('');
   const [loading, setLoading] = useState(false);
   const [sourceType, setSourceType] = useState<ProjectSourceType>('local');
