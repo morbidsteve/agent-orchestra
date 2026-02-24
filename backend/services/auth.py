@@ -57,7 +57,7 @@ async def _get_claude_status() -> dict:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=5)
         output = (stdout or b"").decode().strip()
 
         if process.returncode == 0 and output:
@@ -314,62 +314,55 @@ async def start_claude_login() -> dict:
         "authUrl": None,
     }
 
-    # Read both stdout and stderr for the auth URL
+    # Scan both streams for the auth URL, returning the instant it's found.
     auth_url: str | None = None
 
-    async def _read_stream(
-        stream: asyncio.StreamReader | None,
-    ) -> list[str]:
+    async def _scan_for_url(
+        stream: asyncio.StreamReader | None, name: str,
+    ) -> str | None:
+        """Read lines and return the first HTTPS URL found."""
         if stream is None:
-            return []
-        lines: list[str] = []
+            return None
         try:
             while True:
-                line_bytes = await asyncio.wait_for(stream.readline(), timeout=10)
+                line_bytes = await asyncio.wait_for(stream.readline(), timeout=3)
                 if not line_bytes:
                     break
-                lines.append(line_bytes.decode("utf-8", errors="replace"))
+                line = line_bytes.decode("utf-8", errors="replace")
+                logger.debug("claude auth login %s: %s", name, line.rstrip())
+                url_match = re.search(r"(https://\S+)", line)
+                if url_match:
+                    return url_match.group(1)
         except asyncio.TimeoutError:
             pass
-        return lines
+        return None
 
     try:
-        # Try reading from both streams concurrently
-        stdout_task = asyncio.create_task(_read_stream(process.stdout))
-        stderr_task = asyncio.create_task(_read_stream(process.stderr))
+        stdout_task = asyncio.create_task(_scan_for_url(process.stdout, "stdout"))
+        stderr_task = asyncio.create_task(_scan_for_url(process.stderr, "stderr"))
 
         done, pending = await asyncio.wait(
             [stdout_task, stderr_task],
-            timeout=15,
+            timeout=8,
             return_when=asyncio.FIRST_COMPLETED,
         )
 
-        # Check completed tasks for the auth URL
         for task in done:
-            for line in task.result():
-                logger.debug("claude auth login output: %s", line.rstrip())
-                url_match = re.search(r"(https://\S+)", line)
-                if url_match:
-                    auth_url = url_match.group(1)
-                    break
-            if auth_url:
+            result = task.result()
+            if result:
+                auth_url = result
                 break
 
-        # If we didn't find it in the first stream, check the other
+        # If first stream didn't have the URL, check the other
         if not auth_url:
             for task in pending:
                 try:
-                    lines = await asyncio.wait_for(task, timeout=5)
-                    for line in lines:
-                        logger.debug("claude auth login output (pending): %s", line.rstrip())
-                        url_match = re.search(r"(https://\S+)", line)
-                        if url_match:
-                            auth_url = url_match.group(1)
-                            break
+                    result = await asyncio.wait_for(task, timeout=3)
+                    if result:
+                        auth_url = result
                 except asyncio.TimeoutError:
                     task.cancel()
 
-        # Cancel any remaining pending tasks
         for task in pending:
             if not task.done():
                 task.cancel()
@@ -394,9 +387,31 @@ async def start_claude_login() -> dict:
         return {"authUrl": None, "status": "error"}
 
 
+async def _drain_stream(stream: asyncio.StreamReader | None) -> None:
+    """Read and discard all output from a stream to prevent pipe deadlocks."""
+    if stream is None:
+        return
+    try:
+        while True:
+            chunk = await asyncio.wait_for(stream.read(4096), timeout=1)
+            if not chunk:
+                break
+    except (asyncio.TimeoutError, Exception):
+        pass
+
+
 async def _monitor_claude_login(process: asyncio.subprocess.Process) -> None:
-    """Wait for claude auth login process to complete."""
+    """Wait for claude auth login process to complete.
+
+    Also drains stdout/stderr so the process doesn't deadlock on pipe writes.
+    """
     global _claude_login_session
+
+    # Keep draining stdout/stderr so the process doesn't block if it
+    # outputs prompts (e.g., "Enter code:") after the auth URL.
+    drain_out = asyncio.create_task(_drain_stream(process.stdout))
+    drain_err = asyncio.create_task(_drain_stream(process.stderr))
+
     try:
         await asyncio.wait_for(process.wait(), timeout=300)
         if process.returncode == 0:
@@ -414,6 +429,9 @@ async def _monitor_claude_login(process: asyncio.subprocess.Process) -> None:
             process.kill()
         except ProcessLookupError:
             pass
+    finally:
+        drain_out.cancel()
+        drain_err.cancel()
 
 
 async def submit_claude_auth_code(code: str) -> dict:
@@ -430,7 +448,6 @@ async def submit_claude_auth_code(code: str) -> dict:
     try:
         process.stdin.write(f"{code}\n".encode())
         await process.stdin.drain()
-        process.stdin.close()
         return {"status": "submitted"}
     except Exception as e:
         logger.exception("Failed to submit auth code")
