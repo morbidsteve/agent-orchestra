@@ -19,7 +19,7 @@ export function ConsolePage() {
   const conversationId = conversation?.id ?? null;
   const executionId = conversation?.activeExecutionId ?? null;
 
-  const { messages: wsMessages, executionStatus } = useConsoleWebSocket(conversationId);
+  const { messages: wsMessages, executionStatus, pendingQuestion, sendAnswer } = useConsoleWebSocket(conversationId);
   const { agents: dynamicAgents, fileTree, activeFiles } = useDynamicAgents(wsMessages);
 
   const handleSend = useCallback(async (text: string) => {
@@ -30,9 +30,11 @@ export function ConsolePage() {
     }
   }, [conversation, sendMessage, startConversation, model]);
 
-  const handleClarificationReply = useCallback(async (answer: string) => {
-    await sendMessage(answer);
-  }, [sendMessage]);
+  const handleClarificationReply = useCallback((answer: string) => {
+    if (pendingQuestion) {
+      sendAnswer(pendingQuestion.questionId, answer);
+    }
+  }, [pendingQuestion, sendAnswer]);
 
   return (
     <div className="flex h-full">
