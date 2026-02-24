@@ -18,7 +18,7 @@ devc shell             # open a shell inside it
 make                   # install deps + start backend & frontend
 ```
 
-Then open **http://localhost:5173** and start typing.
+Then open **http://localhost:5173**. On first launch a setup wizard walks you through connecting Claude Code and GitHub — once both are authenticated you land in the Console and can start typing.
 
 <details>
 <summary>Alternative: run locally without a devcontainer</summary>
@@ -102,6 +102,7 @@ The Console sends messages over REST; the backend creates or resumes a conversat
 
 | Path | Page | Purpose |
 |------|------|---------|
+| `/setup` | Setup Wizard | First-run auth flow (Claude + GitHub) |
 | `/` | Console | Primary conversational interface |
 | `/dashboard` | Dashboard | Execution overview and pipeline status |
 | `/office` | Agent Office | Live agent node-graph visualization |
@@ -109,6 +110,8 @@ The Console sends messages over REST; the backend creates or resumes a conversat
 | `/agents` | Agents | Agent management and status |
 | `/findings` | Findings | Security and quality findings |
 | `/settings` | Settings | GitHub and Claude Code authentication |
+
+All routes except `/setup` require both Claude and GitHub authentication. Unauthenticated users are redirected to the setup wizard automatically.
 
 ## API
 
