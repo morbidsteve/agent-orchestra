@@ -79,6 +79,52 @@ def parse_phase_status(line: str) -> str | None:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Business eval section detection
+# ──────────────────────────────────────────────────────────────────────────────
+
+_BUSINESS_EVAL_SECTIONS: dict[str, re.Pattern[str]] = {
+    "market-research": re.compile(
+        r"(?:MARKET\s+RESEARCH|Market\s+Analysis):\s*(.*)", re.IGNORECASE,
+    ),
+    "competitive-analysis": re.compile(
+        r"(?:COMPETITIVE\s+ANALYSIS|Competitor\s+Review):\s*(.*)", re.IGNORECASE,
+    ),
+    "scoring": re.compile(
+        r"(?:ICE\s+SCOR(?:E|ING)|Feature\s+Score):\s*(.*)", re.IGNORECASE,
+    ),
+    "complete": re.compile(
+        r"(?:RECOMMENDATION|VERDICT):\s*(BUILD|DEFER|INVESTIGATE)", re.IGNORECASE,
+    ),
+}
+
+_STATUS_TO_SECTION: dict[str, str] = {
+    "market-research": "marketResearch",
+    "competitive-analysis": "competitiveAnalysis",
+    "scoring": "iceScore",
+    "complete": "recommendation",
+}
+
+
+def parse_business_eval_section(line: str) -> dict[str, Any] | None:
+    """Detect business evaluation sections in output.
+
+    Returns a dict with status, section name, and data if a business eval
+    section is detected.  Returns None otherwise.
+    """
+    for status, pattern in _BUSINESS_EVAL_SECTIONS.items():
+        match = pattern.search(line)
+        if match:
+            return {
+                "status": status,
+                "section": _STATUS_TO_SECTION[status],
+                "data": {
+                    "raw": match.group(1).strip() if match.lastindex else line.strip(),
+                },
+            }
+    return None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Activity detection
 # ──────────────────────────────────────────────────────────────────────────────
 

@@ -143,3 +143,193 @@ export interface BrowseResponse {
   directories: string[];
   truncated: boolean;
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Conversation types (Phase 1: Conversational Console)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export type MessageRole = 'user' | 'orchestra' | 'system';
+export type MessageContentType =
+  | 'text'
+  | 'clarification'
+  | 'execution-start'
+  | 'progress'
+  | 'screenshot'
+  | 'business-eval';
+
+export interface ClarificationPayload {
+  question: string;
+  options?: string[];
+  required: boolean;
+}
+
+export interface BusinessEvalPayload {
+  section: 'marketResearch' | 'competitiveAnalysis' | 'iceScore' | 'recommendation';
+  status: 'market-research' | 'competitive-analysis' | 'scoring' | 'complete';
+  data: BusinessEvalData;
+}
+
+export interface MarketResearchData {
+  summary: string;
+  trends: string[];
+  marketSize: string;
+  sources: { title: string; url: string }[];
+}
+
+export interface CompetitorEntry {
+  name: string;
+  hasFeature: boolean;
+  approach: string;
+  strengths: string[];
+  weaknesses: string[];
+}
+
+export interface ICEScoreData {
+  impact: number;
+  confidence: number;
+  ease: number;
+  total: number;
+  reasoning: string;
+}
+
+export interface RecommendationData {
+  verdict: 'BUILD' | 'DEFER' | 'INVESTIGATE';
+  summary: string;
+  risks: string[];
+  nextSteps: string[];
+}
+
+export type BusinessEvalData =
+  | { marketResearch: MarketResearchData }
+  | { competitiveAnalysis: CompetitorEntry[] }
+  | { iceScore: ICEScoreData }
+  | { recommendation: RecommendationData };
+
+export interface ConversationMessage {
+  id: string;
+  role: MessageRole;
+  contentType: MessageContentType;
+  text: string;
+  timestamp: string;
+  clarification?: ClarificationPayload;
+  executionRef?: string;
+  screenshotRef?: string;
+  businessEval?: BusinessEvalPayload;
+}
+
+export interface Conversation {
+  id: string;
+  messages: ConversationMessage[];
+  activeExecutionId: string | null;
+  projectSource: ProjectSource | null;
+  model: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Agent Office types (Phase 2)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export type AgentVisualStatus = 'idle' | 'working' | 'done' | 'error';
+
+export interface AgentNode {
+  role: string;
+  name: string;
+  color: string;
+  icon: string;
+  visualStatus: AgentVisualStatus;
+  currentTask: string;
+}
+
+export interface AgentConnection {
+  from: string;
+  to: string;
+  label: string;
+  active: boolean;
+  dataFlow: 'handoff' | 'feedback' | 'broadcast';
+}
+
+export interface OfficeState {
+  agents: AgentNode[];
+  connections: AgentConnection[];
+  currentPhase: string | null;
+  executionId: string | null;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Screenshot types (Phase 3)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export type ScreenshotType = 'terminal' | 'browser';
+
+export interface Screenshot {
+  id: string;
+  executionId: string;
+  type: ScreenshotType;
+  phase: string;
+  milestone: string;
+  timestamp: string;
+  imageUrl?: string;
+  terminalLines?: string[];
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Console WebSocket message types
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface WsConsoleTextMessage {
+  type: 'console-text';
+  text: string;
+  messageId: string;
+}
+
+export interface WsClarificationMessage {
+  type: 'clarification';
+  question: string;
+  options?: string[];
+  required: boolean;
+  messageId: string;
+}
+
+export interface WsAgentStatusMessage {
+  type: 'agent-status';
+  agentRole: string;
+  visualStatus: AgentVisualStatus;
+  currentTask: string;
+}
+
+export interface WsAgentConnectionMessage {
+  type: 'agent-connection';
+  from: string;
+  to: string;
+  label: string;
+  active: boolean;
+  dataFlow: 'handoff' | 'feedback' | 'broadcast';
+}
+
+export interface WsScreenshotMessage {
+  type: 'screenshot';
+  screenshot: Screenshot;
+}
+
+export interface WsBusinessEvalMessage {
+  type: 'business-eval';
+  status: string;
+  section: string;
+  data: Record<string, unknown>;
+}
+
+export interface WsExecutionStartMessage {
+  type: 'execution-start';
+  executionId: string;
+}
+
+export type WsConsoleMessage =
+  | WsConsoleTextMessage
+  | WsClarificationMessage
+  | WsAgentStatusMessage
+  | WsAgentConnectionMessage
+  | WsScreenshotMessage
+  | WsBusinessEvalMessage
+  | WsExecutionStartMessage;

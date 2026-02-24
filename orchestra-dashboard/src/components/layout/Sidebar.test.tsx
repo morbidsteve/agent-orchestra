@@ -10,8 +10,9 @@ describe('Sidebar', () => {
 
   it('renders navigation links', () => {
     renderWithProviders(<Sidebar />);
+    expect(screen.getByRole('link', { name: /Console/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Dashboard/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /New Execution/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Agent Office/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Agents/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Findings/ })).toBeInTheDocument();
   });

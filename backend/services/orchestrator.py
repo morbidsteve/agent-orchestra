@@ -13,6 +13,7 @@ from typing import Any
 
 from backend import store
 from backend.services.parser import parse_finding
+from backend.services.screenshots import capture_terminal_snapshot
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -92,6 +93,21 @@ SIMULATION_LINES: dict[str, list[str]] = {
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Dual broadcast helper
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+async def broadcast_both(execution_id: str, message: dict) -> None:
+    """Broadcast a message to both the execution WebSocket and any linked conversation console."""
+    await store.broadcast(execution_id, message)
+
+    # Find conversations with this active execution and broadcast to them
+    for conv_id, conv in store.conversations.items():
+        if conv.get("activeExecutionId") == execution_id:
+            await store.broadcast_console(conv_id, message)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Public API
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -111,7 +127,7 @@ async def run_execution(execution_id: str) -> None:
     now = datetime.now(timezone.utc).isoformat()
     execution["status"] = "running"
     execution["startedAt"] = now
-    await store.broadcast(execution_id, {
+    await broadcast_both(execution_id, {
         "type": "phase",
         "phase": None,
         "status": "running",
@@ -125,7 +141,7 @@ async def run_execution(execution_id: str) -> None:
         # All phases completed
         execution["status"] = "completed"
         execution["completedAt"] = datetime.now(timezone.utc).isoformat()
-        await store.broadcast(execution_id, {"type": "complete", "status": "completed"})
+        await broadcast_both(execution_id, {"type": "complete", "status": "completed"})
 
     except Exception as exc:
         execution["status"] = "failed"
@@ -137,7 +153,7 @@ async def run_execution(execution_id: str) -> None:
                 step["output"].append("An internal error occurred during execution.")
                 step["completedAt"] = datetime.now(timezone.utc).isoformat()
                 break
-        await store.broadcast(execution_id, {
+        await broadcast_both(execution_id, {
             "type": "complete",
             "status": "failed",
         })
@@ -157,7 +173,7 @@ async def _run_phase(execution_id: str, step: dict[str, Any]) -> None:
     step["status"] = "running"
     step["agentRole"] = agent_role
     step["startedAt"] = datetime.now(timezone.utc).isoformat()
-    await store.broadcast(execution_id, {
+    await broadcast_both(execution_id, {
         "type": "phase",
         "phase": phase,
         "status": "running",
@@ -165,6 +181,14 @@ async def _run_phase(execution_id: str, step: dict[str, Any]) -> None:
 
     # Mark agent as busy
     _set_agent_status(agent_role, "busy", execution_id)
+
+    # Broadcast agent-status: working
+    await broadcast_both(execution_id, {
+        "type": "agent-status",
+        "agentRole": agent_role,
+        "visualStatus": "working",
+        "currentTask": f"Executing {phase} phase",
+    })
 
     # Create an activity record
     activity_id = f"act-{uuid.uuid4().hex[:8]}"
@@ -190,6 +214,40 @@ async def _run_phase(execution_id: str, step: dict[str, Any]) -> None:
         else:
             await _simulate_phase(execution_id, phase, step, activity)
     finally:
+        # Capture terminal snapshot before marking agent as done
+        snapshot = await capture_terminal_snapshot(
+            execution_id, phase, step["output"],
+        )
+        await broadcast_both(execution_id, {
+            "type": "screenshot",
+            "screenshot": snapshot,
+        })
+
+        # Determine next phase and broadcast agent-connection handoff
+        pipeline = execution["pipeline"]
+        current_idx = next(
+            (i for i, s in enumerate(pipeline) if s["phase"] == phase), -1,
+        )
+        if current_idx >= 0 and current_idx < len(pipeline) - 1:
+            next_phase = pipeline[current_idx + 1]["phase"]
+            next_agent = PHASE_AGENTS.get(next_phase, "developer")
+            await broadcast_both(execution_id, {
+                "type": "agent-connection",
+                "from": agent_role,
+                "to": next_agent,
+                "label": f"{phase} \u2192 {next_phase}",
+                "active": True,
+                "dataFlow": "handoff",
+            })
+
+        # Broadcast agent-status: done
+        await broadcast_both(execution_id, {
+            "type": "agent-status",
+            "agentRole": agent_role,
+            "visualStatus": "done",
+            "currentTask": "",
+        })
+
         # Mark phase and agent as completed
         step["status"] = "completed"
         step["completedAt"] = datetime.now(timezone.utc).isoformat()
@@ -200,7 +258,7 @@ async def _run_phase(execution_id: str, step: dict[str, Any]) -> None:
         _set_agent_status(agent_role, "idle", None)
         _increment_agent_tasks(agent_role)
 
-        await store.broadcast(execution_id, {
+        await broadcast_both(execution_id, {
             "type": "phase",
             "phase": phase,
             "status": "completed",
@@ -302,12 +360,12 @@ async def _try_real_orchestrator(
         if finding:
             store.findings[finding["id"]] = finding
             execution["findings"].append(finding["id"])
-            await store.broadcast(execution_id, {
+            await broadcast_both(execution_id, {
                 "type": "finding",
                 "finding": finding,
             })
 
-        await store.broadcast(execution_id, {
+        await broadcast_both(execution_id, {
             "type": "output",
             "line": line,
             "phase": phase,
@@ -338,12 +396,12 @@ async def _simulate_phase(
             if finding:
                 store.findings[finding["id"]] = finding
                 execution["findings"].append(finding["id"])
-                await store.broadcast(execution_id, {
+                await broadcast_both(execution_id, {
                     "type": "finding",
                     "finding": finding,
                 })
 
-        await store.broadcast(execution_id, {
+        await broadcast_both(execution_id, {
             "type": "output",
             "line": line,
             "phase": phase,

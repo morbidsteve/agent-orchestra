@@ -1,4 +1,4 @@
-import type { Execution, AgentInfo, Finding, WorkflowType, ProjectSource, AuthStatus, GitHubLoginResponse, GitHubLoginStatus, BrowseResponse } from './types.ts';
+import type { Execution, AgentInfo, Finding, WorkflowType, ProjectSource, AuthStatus, GitHubLoginResponse, GitHubLoginStatus, BrowseResponse, Conversation, Screenshot } from './types.ts';
 export type { AgentInfo };
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -98,4 +98,52 @@ export function browseFilesystem(path?: string): Promise<BrowseResponse> {
   if (path) params.set('path', path);
   const query = params.toString();
   return apiFetch<BrowseResponse>(query ? `/api/filesystem/browse?${query}` : '/api/filesystem/browse');
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Conversations
+// ──────────────────────────────────────────────────────────────────────────────
+
+export function fetchConversations(): Promise<Conversation[]> {
+  return apiFetch<Conversation[]>('/api/conversations');
+}
+
+export function fetchConversation(id: string): Promise<Conversation> {
+  return apiFetch<Conversation>(`/api/conversations/${encodeURIComponent(id)}`);
+}
+
+export function createConversation(params: {
+  text: string;
+  projectSource?: ProjectSource;
+  model?: string;
+}): Promise<Conversation> {
+  return apiFetch<Conversation>('/api/conversations', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export function sendMessage(conversationId: string, params: {
+  text: string;
+}): Promise<Conversation> {
+  return apiFetch<Conversation>(
+    `/api/conversations/${encodeURIComponent(conversationId)}/messages`,
+    {
+      method: 'POST',
+      body: JSON.stringify(params),
+    },
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Screenshots
+// ──────────────────────────────────────────────────────────────────────────────
+
+export function fetchScreenshots(executionId: string): Promise<Screenshot[]> {
+  return apiFetch<Screenshot[]>(`/api/screenshots?execution_id=${encodeURIComponent(executionId)}`);
+}
+
+export function getScreenshotImageUrl(id: string): string {
+  const base = import.meta.env.VITE_API_URL || '';
+  return `${base}/api/screenshots/${encodeURIComponent(id)}/image`;
 }

@@ -176,11 +176,39 @@ class WebSocketMessage(BaseModel):
         alias_generator=_to_camel,
     )
 
-    type: Literal["output", "phase", "finding", "complete"]
+    type: Literal[
+        "output", "phase", "finding", "complete",
+        "agent-status", "agent-connection",
+        "console-text", "clarification",
+        "execution-start", "screenshot", "business-eval",
+    ]
     line: str | None = None
     phase: str | None = None
     status: str | None = None
     finding: dict | None = None
+    # Agent office fields
+    agent_role: str | None = None
+    visual_status: str | None = None
+    current_task: str | None = None
+    # Agent connection fields
+    from_agent: str | None = Field(None, alias="from")
+    to_agent: str | None = Field(None, alias="to")
+    label: str | None = None
+    active: bool | None = None
+    data_flow: str | None = None
+    # Console fields
+    text: str | None = None
+    message_id: str | None = None
+    question: str | None = None
+    options: list[str] | None = None
+    required: bool | None = None
+    # Execution start
+    execution_id: str | None = None
+    # Screenshot
+    screenshot: dict | None = None
+    # Business eval
+    section: str | None = None
+    data: dict | None = None
 
 
 class BrowseResponse(BaseModel):
@@ -193,3 +221,34 @@ class BrowseResponse(BaseModel):
     parent: str | None = None
     directories: list[str] = Field(default_factory=list)
     truncated: bool = False
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Conversation models (Phase 1)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class ConversationMessageRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=_to_camel,
+    )
+
+    text: str = Field(max_length=10000)
+    conversation_id: str | None = None
+    project_source: ProjectSource | None = None
+    model: Literal["sonnet", "opus", "haiku"] = "sonnet"
+
+
+class ScreenshotRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=_to_camel,
+    )
+
+    execution_id: str
+    type: Literal["terminal", "browser"] = "terminal"
+    phase: str = ""
+    milestone: str = ""
+    terminal_lines: list[str] = Field(default_factory=list)
+    url: str | None = None

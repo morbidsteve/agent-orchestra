@@ -15,9 +15,14 @@ from fastapi import WebSocket
 executions: dict[str, dict[str, Any]] = {}
 agents: dict[str, dict[str, Any]] = {}
 findings: dict[str, dict[str, Any]] = {}
+conversations: dict[str, dict[str, Any]] = {}
+screenshots: dict[str, dict[str, Any]] = {}
 websocket_connections: dict[str, set[WebSocket]] = {}
+console_connections: dict[str, set[WebSocket]] = {}
 
 _execution_counter: int = 0
+_conversation_counter: int = 0
+_screenshot_counter: int = 0
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -30,6 +35,20 @@ def next_execution_id() -> str:
     global _execution_counter
     _execution_counter += 1
     return f"exec-{_execution_counter:03d}"
+
+
+def next_conversation_id() -> str:
+    """Return the next conversation ID: conv-001, conv-002, etc."""
+    global _conversation_counter
+    _conversation_counter += 1
+    return f"conv-{_conversation_counter:03d}"
+
+
+def next_screenshot_id() -> str:
+    """Return the next screenshot ID: ss-001, ss-002, etc."""
+    global _screenshot_counter
+    _screenshot_counter += 1
+    return f"ss-{_screenshot_counter:03d}"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -147,5 +166,21 @@ async def broadcast(execution_id: str, message: dict) -> None:
             dead.append(ws)
 
     # Clean up broken connections
+    for ws in dead:
+        connections.discard(ws)
+
+
+async def broadcast_console(conversation_id: str, message: dict) -> None:
+    """Send a JSON message to every WebSocket subscribed to a conversation."""
+    connections = console_connections.get(conversation_id, set())
+    dead: list[WebSocket] = []
+    payload = json.dumps(message)
+
+    for ws in connections:
+        try:
+            await ws.send_text(payload)
+        except Exception:
+            dead.append(ws)
+
     for ws in dead:
         connections.discard(ws)
