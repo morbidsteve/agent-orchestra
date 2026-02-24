@@ -156,7 +156,8 @@ public/               # Static assets
 After all quality gates pass (tests, lint, tsc, no critical security findings), **automatically
 create a branch, commit, open a PR, and merge** — never wait for the user to ask. This is the
 mandatory final step of every completed feature or bug fix. Use `gh pr create` and
-`gh pr merge --merge`. If the merge fails, report the PR URL and error to the user.
+`gh pr merge --merge`. **After merge, delete the branch** (remote and local) and return to
+`master`. If the merge fails, report the PR URL and error to the user.
 
 ## Common Commands
 
