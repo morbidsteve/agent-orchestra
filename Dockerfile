@@ -49,8 +49,10 @@ ENV BACKEND_HOST=0.0.0.0
 # Expose backend + frontend ports
 EXPOSE 8000 5173
 
-# Ensure the orchestra user owns the app directory and git is safe
+# Ensure the orchestra user owns the app directory, home dirs, and git is safe
 RUN chown -R orchestra:orchestra /app \
+  && mkdir -p /home/orchestra/.claude /home/orchestra/.config/gh \
+  && chown -R orchestra:orchestra /home/orchestra \
   && git config --global --add safe.directory /app
 
 # Switch to non-root user
