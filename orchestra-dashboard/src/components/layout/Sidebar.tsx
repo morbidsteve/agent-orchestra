@@ -10,6 +10,7 @@ import {
 import { StatusDot } from '../ui/StatusDot.tsx';
 import { useOrchestra } from '../../context/OrchestraContext.tsx';
 import { cn } from '../../lib/cn.ts';
+import { version } from '../../../package.json';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -101,7 +102,7 @@ export function Sidebar() {
             isLive ? 'bg-green-400' : 'bg-gray-500'
           )} />
           <span className="text-xs text-gray-500">
-            {isLive ? 'Live' : 'Mock Data'}
+            {isLive ? 'Live' : 'Mock Data'} · v{version}
           </span>
         </div>
       </div>
