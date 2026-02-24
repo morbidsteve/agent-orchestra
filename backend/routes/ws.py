@@ -43,6 +43,23 @@ async def execution_ws(websocket: WebSocket, execution_id: str) -> None:
         store.websocket_connections[execution_id] = set()
     store.websocket_connections[execution_id].add(websocket)
 
+    # Replay buffered messages so the client sees history it missed
+    for msg in store.execution_messages.get(execution_id, []):
+        await websocket.send_text(json.dumps(msg))
+
+    # Send a snapshot of the current execution state so the client knows
+    # whether the execution already completed before the WS connected
+    execution = store.executions.get(execution_id)
+    if execution:
+        await websocket.send_text(json.dumps({
+            "type": "execution-snapshot",
+            "execution": {
+                "id": execution["id"],
+                "status": execution["status"],
+                "pipeline": execution["pipeline"],
+            },
+        }))
+
     # Replay any unanswered pending questions for this execution
     for qid in store.pending_questions_by_execution.get(execution_id, []):
         q = store.pending_questions.get(qid)

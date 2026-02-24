@@ -331,6 +331,10 @@ async def console_ws(websocket: WebSocket, conversation_id: str) -> None:
         store.console_connections[conversation_id] = set()
     store.console_connections[conversation_id].add(websocket)
 
+    # Replay buffered console messages so the client sees history it missed
+    for msg in store.console_messages.get(conversation_id, []):
+        await websocket.send_text(json.dumps(msg))
+
     try:
         while True:
             data = await websocket.receive_text()

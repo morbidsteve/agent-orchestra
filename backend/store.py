@@ -25,6 +25,12 @@ console_connections: dict[str, set[WebSocket]] = {}
 pending_questions: dict[str, dict[str, Any]] = {}
 pending_questions_by_execution: dict[str, list[str]] = {}
 
+# Message history buffers — replayed to late-connecting WebSocket clients
+execution_messages: dict[str, list[dict[str, Any]]] = {}  # exec_id → [messages]
+console_messages: dict[str, list[dict[str, Any]]] = {}    # conv_id → [messages]
+
+_MESSAGE_BUFFER_CAP = 500
+
 # Dynamic agent tracking
 dynamic_agents: dict[str, dict[str, dict[str, Any]]] = {}  # exec_id → agent_id → agent dict
 file_activities: dict[str, list[dict[str, Any]]] = {}  # exec_id → [{file, action, agent_id, agent_name, timestamp}]
@@ -181,6 +187,14 @@ def init_agents() -> None:
 
 async def broadcast(execution_id: str, message: dict) -> None:
     """Send a JSON message to every WebSocket subscribed to *execution_id*."""
+    # Buffer the message so late-connecting clients can replay history
+    if execution_id not in execution_messages:
+        execution_messages[execution_id] = []
+    buf = execution_messages[execution_id]
+    buf.append(message)
+    if len(buf) > _MESSAGE_BUFFER_CAP:
+        del buf[: len(buf) - _MESSAGE_BUFFER_CAP]
+
     connections = websocket_connections.get(execution_id, set())
     dead: list[WebSocket] = []
     payload = json.dumps(message)
@@ -198,6 +212,14 @@ async def broadcast(execution_id: str, message: dict) -> None:
 
 async def broadcast_console(conversation_id: str, message: dict) -> None:
     """Send a JSON message to every WebSocket subscribed to a conversation."""
+    # Buffer the message so late-connecting clients can replay history
+    if conversation_id not in console_messages:
+        console_messages[conversation_id] = []
+    buf = console_messages[conversation_id]
+    buf.append(message)
+    if len(buf) > _MESSAGE_BUFFER_CAP:
+        del buf[: len(buf) - _MESSAGE_BUFFER_CAP]
+
     connections = console_connections.get(conversation_id, set())
     dead: list[WebSocket] = []
     payload = json.dumps(message)

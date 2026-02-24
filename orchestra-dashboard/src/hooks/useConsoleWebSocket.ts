@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type {
   WsConsoleMessage,
+  WsExecutionSnapshotMessage,
   Screenshot,
 } from '../lib/types.ts';
 
@@ -66,6 +67,23 @@ export function useConsoleWebSocket(conversationId: string | null): UseConsoleWe
         setCurrentPhase('plan');
         setExecutionStatus('running');
         break;
+      case 'execution-snapshot': {
+        const snap = (msg as WsExecutionSnapshotMessage).execution;
+        if (snap) {
+          if (snap.status === 'completed') {
+            setExecutionStatus('completed');
+          } else if (snap.status === 'failed') {
+            setExecutionStatus('failed');
+          } else if (snap.status === 'running') {
+            setExecutionStatus('running');
+          }
+          const runningStep = snap.pipeline?.find((s) => s.status === 'running');
+          if (runningStep) {
+            setCurrentPhase(runningStep.phase);
+          }
+        }
+        break;
+      }
       case 'agent-spawn':
       case 'agent-output':
       case 'agent-complete':
