@@ -34,17 +34,27 @@ COPY backend/requirements.txt backend/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt 2>/dev/null; \
     pip install --no-cache-dir -r backend/requirements.txt
 
+# Create non-root user (Claude CLI refuses --dangerously-skip-permissions as root)
+RUN useradd -m -s /bin/bash orchestra
+
 # Copy full source
-COPY . .
+COPY --chown=orchestra:orchestra . .
 
 # Copy pre-installed node_modules from frontend-deps stage
-COPY --from=frontend-deps /app/orchestra-dashboard/node_modules orchestra-dashboard/node_modules
+COPY --from=frontend-deps --chown=orchestra:orchestra /app/orchestra-dashboard/node_modules orchestra-dashboard/node_modules
 
 # Bind to 0.0.0.0 so ports are accessible from the host
 ENV BACKEND_HOST=0.0.0.0
 
 # Expose backend + frontend ports
 EXPOSE 8000 5173
+
+# Ensure the orchestra user owns the app directory and git is safe
+RUN chown -R orchestra:orchestra /app \
+  && git config --global --add safe.directory /app
+
+# Switch to non-root user
+USER orchestra
 
 # Start backend + frontend (Vite with --host to bind 0.0.0.0)
 CMD bash -c 'python -m backend.run & cd orchestra-dashboard && npx vite --host 0.0.0.0'
