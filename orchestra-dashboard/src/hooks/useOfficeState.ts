@@ -6,6 +6,16 @@ import type {
   AgentVisualStatus,
   WsConsoleMessage,
 } from '../lib/types.ts';
+import { fetchExecution } from '../lib/api.ts';
+
+/** Maps backend pipeline phase names to agent roles for office visualization. */
+const PHASE_AGENTS: Record<string, string> = {
+  plan: 'developer',
+  develop: 'developer',
+  test: 'tester',
+  security: 'devsecops',
+  report: 'developer',
+};
 
 const DEFAULT_AGENTS: AgentNode[] = [
   { role: 'developer', name: 'Developer', color: '#3b82f6', icon: 'Terminal', visualStatus: 'idle', currentTask: '' },
@@ -86,6 +96,69 @@ export function useOfficeState(executionId: string | null): OfficeState {
       return;
     }
 
+    // Fetch current execution state to initialize agent visuals from pipeline data.
+    // This covers messages that were broadcast before the WebSocket connected.
+    let cancelled = false;
+    fetchExecution(executionId)
+      .then(execution => {
+        if (cancelled || !execution?.pipeline) return;
+
+        const initialAgents = DEFAULT_AGENTS.map(agent => ({ ...agent }));
+        let runningPhase: string | null = null;
+        const initialConnections: AgentConnection[] = [];
+
+        execution.pipeline.forEach((step, index) => {
+          const agentRole = PHASE_AGENTS[step.phase] || 'developer';
+          const agentIdx = initialAgents.findIndex(a => a.role === agentRole);
+
+          if (step.status === 'running') {
+            runningPhase = step.phase;
+            if (agentIdx >= 0) {
+              initialAgents[agentIdx] = {
+                ...initialAgents[agentIdx],
+                visualStatus: 'working',
+                currentTask: `Executing ${step.phase} phase`,
+              };
+            }
+          } else if (step.status === 'completed') {
+            if (agentIdx >= 0 && initialAgents[agentIdx].visualStatus === 'idle') {
+              initialAgents[agentIdx] = {
+                ...initialAgents[agentIdx],
+                visualStatus: 'done',
+                currentTask: '',
+              };
+            }
+            // Add connection to next phase
+            if (index < execution.pipeline.length - 1) {
+              const nextStep = execution.pipeline[index + 1];
+              const nextAgent = PHASE_AGENTS[nextStep.phase] || 'developer';
+              initialConnections.push({
+                from: agentRole,
+                to: nextAgent,
+                label: `${step.phase} \u2192 ${nextStep.phase}`,
+                active: nextStep.status === 'running',
+                dataFlow: 'handoff',
+              });
+            }
+          }
+        });
+
+        setAgents(initialAgents);
+        setConnections(initialConnections);
+        if (runningPhase) {
+          setCurrentPhase(runningPhase);
+        } else {
+          // Find the last completed phase
+          const lastCompleted = [...execution.pipeline]
+            .reverse()
+            .find(s => s.status === 'completed');
+          if (lastCompleted) setCurrentPhase(lastCompleted.phase);
+        }
+      })
+      .catch(() => {
+        // Silently fail — WebSocket updates will provide state
+      });
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/api/ws/${encodeURIComponent(executionId)}`;
 
@@ -110,6 +183,7 @@ export function useOfficeState(executionId: string | null): OfficeState {
     connect();
 
     return () => {
+      cancelled = true;
       clearTimeout(reconnectTimeoutRef.current);
       wsRef.current?.close();
     };

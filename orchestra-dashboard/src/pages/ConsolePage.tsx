@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { ConversationPanel } from '../components/features/console/ConversationPanel.tsx';
 import { ContextPanel } from '../components/features/console/ContextPanel.tsx';
-import { useConversation } from '../hooks/useConversation.ts';
+import { useConversationContext } from '../context/ConversationContext.tsx';
 import { useConsoleWebSocket } from '../hooks/useConsoleWebSocket.ts';
 
 export function ConsolePage() {
@@ -13,7 +13,7 @@ export function ConsolePage() {
     startConversation,
     model,
     setModel,
-  } = useConversation();
+  } = useConversationContext();
 
   const conversationId = conversation?.id ?? null;
   const executionId = conversation?.activeExecutionId ?? null;

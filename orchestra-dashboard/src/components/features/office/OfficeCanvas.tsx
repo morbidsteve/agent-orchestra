@@ -1,7 +1,7 @@
 import { AgentDesk } from './AgentDesk.tsx';
 import { OrchestratorHub } from './OrchestratorHub.tsx';
 import { ConnectionLine } from './ConnectionLine.tsx';
-import type { OfficeState } from '../../../lib/types.ts';
+import type { OfficeState, AgentConnection } from '../../../lib/types.ts';
 
 interface OfficeCanvasProps {
   officeState: OfficeState;
@@ -27,9 +27,21 @@ const AGENT_COLORS: Record<string, string> = {
   'business-dev': '#a855f7',
 };
 
+/** Default idle connections showing team structure at rest */
+const DEFAULT_IDLE_CONNECTIONS: AgentConnection[] = [
+  { from: 'orchestrator', to: 'developer', label: '', active: false, dataFlow: 'handoff' },
+  { from: 'orchestrator', to: 'developer-2', label: '', active: false, dataFlow: 'handoff' },
+  { from: 'orchestrator', to: 'tester', label: '', active: false, dataFlow: 'handoff' },
+  { from: 'orchestrator', to: 'devsecops', label: '', active: false, dataFlow: 'handoff' },
+  { from: 'orchestrator', to: 'business-dev', label: '', active: false, dataFlow: 'handoff' },
+];
+
 export function OfficeCanvas({ officeState }: OfficeCanvasProps) {
   const { agents, connections, currentPhase, executionId } = officeState;
   const isActive = executionId !== null && currentPhase !== null;
+
+  // Show default idle connections when no WebSocket connections exist
+  const displayConnections = connections.length > 0 ? connections : DEFAULT_IDLE_CONNECTIONS;
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-lg border border-surface-600 bg-surface-900">
@@ -40,7 +52,7 @@ export function OfficeCanvas({ officeState }: OfficeCanvasProps) {
         preserveAspectRatio="none"
         style={{ pointerEvents: 'none' }}
       >
-        {connections.map((conn) => {
+        {displayConnections.map((conn) => {
           const fromPos = AGENT_POSITIONS[conn.from] || AGENT_POSITIONS['orchestrator'];
           const toPos = AGENT_POSITIONS[conn.to] || AGENT_POSITIONS['orchestrator'];
           const color = AGENT_COLORS[conn.from] || '#6b7280';
