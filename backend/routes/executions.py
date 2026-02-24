@@ -26,24 +26,35 @@ async def _limited_run(execution_id: str) -> None:
         await run_execution(execution_id)
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Workflow → pipeline phases mapping (matches frontend constants)
+# Workflow → pipeline groups (each group runs in parallel)
 # ──────────────────────────────────────────────────────────────────────────────
 
-WORKFLOW_PHASES: dict[str, list[str]] = {
-    "full-pipeline": ["plan", "develop", "test", "security", "report"],
-    "code-review": ["plan", "develop", "test", "security", "report"],
-    "security-audit": ["plan", "security", "report"],
-    "feature-eval": ["plan", "develop", "report"],
-    "quick-fix": ["develop", "test", "report"],
-}
-
-# Phase → default agent role mapping
-PHASE_AGENTS: dict[str, str] = {
-    "plan": "developer",
-    "develop": "developer",
-    "test": "tester",
-    "security": "devsecops",
-    "report": "developer",
+WORKFLOW_PIPELINES: dict[str, list[list[tuple[str, str]]]] = {
+    "full-pipeline": [
+        [("plan", "developer")],
+        [("develop", "developer"), ("develop-2", "developer-2")],
+        [("test", "tester"), ("security", "devsecops")],
+        [("report", "developer")],
+    ],
+    "code-review": [
+        [("develop", "developer"), ("test", "tester"), ("security", "devsecops")],
+        [("report", "developer")],
+    ],
+    "security-audit": [
+        [("plan", "developer")],
+        [("security", "devsecops")],
+        [("report", "developer")],
+    ],
+    "feature-eval": [
+        [("plan", "developer")],
+        [("develop", "developer"), ("business-eval", "business-dev")],
+        [("report", "developer")],
+    ],
+    "quick-fix": [
+        [("develop", "developer")],
+        [("test", "tester"), ("security", "devsecops")],
+        [("report", "developer")],
+    ],
 }
 
 
@@ -75,18 +86,19 @@ async def create_execution(req: CreateExecutionRequest) -> dict:
     exec_id = store.next_execution_id()
     now = datetime.now(timezone.utc).isoformat()
 
-    phases = WORKFLOW_PHASES.get(req.workflow, WORKFLOW_PHASES["full-pipeline"])
-    pipeline = [
-        {
-            "phase": phase,
-            "status": "pending",
-            "agentRole": PHASE_AGENTS.get(phase),
-            "startedAt": None,
-            "completedAt": None,
-            "output": [],
-        }
-        for phase in phases
-    ]
+    groups = WORKFLOW_PIPELINES.get(req.workflow, WORKFLOW_PIPELINES["full-pipeline"])
+    pipeline = []
+    for group_idx, group in enumerate(groups):
+        for phase, agent_role in group:
+            pipeline.append({
+                "phase": phase,
+                "group": group_idx,
+                "status": "pending",
+                "agentRole": agent_role,
+                "startedAt": None,
+                "completedAt": None,
+                "output": [],
+            })
 
     resolved_path = ""
     project_source_dict = None

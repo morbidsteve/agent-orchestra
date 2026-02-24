@@ -37,8 +37,10 @@ def _check_orchestrator_available() -> bool:
 PHASE_AGENTS: dict[str, str] = {
     "plan": "developer",
     "develop": "developer",
+    "develop-2": "developer-2",
     "test": "tester",
     "security": "devsecops",
+    "business-eval": "business-dev",
     "report": "developer",
 }
 
@@ -87,6 +89,32 @@ PHASE_PROMPTS: dict[str, str] = {
         "XSS, injection, exposed secrets, insecure dependencies, OWASP Top 10 issues. "
         "Use Read and Grep to search the code. Do NOT modify code — only report findings.\n\n"
         "List any findings with severity (critical/high/medium/low) and remediation steps."
+    ),
+    "develop-2": (
+        f"{_AUTONOMOUS_PREAMBLE}"
+        "You are a secondary developer working IN PARALLEL with the primary developer. "
+        "The primary developer is handling the main feature implementation. Your job is to "
+        "handle supporting and independent work:\n"
+        "- Utility functions, helpers, and shared modules\n"
+        "- Configuration files and environment setup\n"
+        "- Type definitions and interfaces\n"
+        "- Test infrastructure and fixtures (not the tests themselves)\n"
+        "- Independent modules that support the main feature\n\n"
+        "CRITICAL: Do NOT modify files that the primary developer is likely working on. "
+        "Focus on NEW files and clearly independent supporting code. If there is no "
+        "independent supporting work needed, review the codebase for improvements and "
+        "prepare the project structure for the main feature."
+    ),
+    "business-eval": (
+        f"{_AUTONOMOUS_PREAMBLE}"
+        "You are a business development and product strategy expert. Evaluate the feature "
+        "from a market and business perspective. Analyze:\n"
+        "- Competitive landscape and existing solutions\n"
+        "- Market demand and user need\n"
+        "- Strategic fit with the product\n"
+        "- Implementation complexity vs business value\n\n"
+        "Provide an ICE score (Impact 1-10, Confidence 1-10, Ease 1-10) and a "
+        "BUILD / DEFER / INVESTIGATE recommendation with clear reasoning."
     ),
     "report": (
         f"{_AUTONOMOUS_PREAMBLE}"
@@ -183,9 +211,27 @@ async def run_execution(execution_id: str) -> None:
     })
 
     try:
+        # Group pipeline steps and execute groups in parallel
+        groups: list[list[dict[str, Any]]] = []
+        current_group: list[dict[str, Any]] = []
+        current_group_idx = execution["pipeline"][0]["group"] if execution["pipeline"] else 0
+
         for step in execution["pipeline"]:
-            phase = step["phase"]
-            await _run_phase(execution_id, step)
+            if step["group"] != current_group_idx:
+                groups.append(current_group)
+                current_group = []
+                current_group_idx = step["group"]
+            current_group.append(step)
+        if current_group:
+            groups.append(current_group)
+
+        for group in groups:
+            if len(group) == 1:
+                await _run_phase(execution_id, group[0])
+            else:
+                await asyncio.gather(*[
+                    _run_phase(execution_id, step) for step in group
+                ])
 
         # All phases completed
         execution["status"] = "completed"
@@ -195,13 +241,12 @@ async def run_execution(execution_id: str) -> None:
     except Exception as exc:
         execution["status"] = "failed"
         execution["completedAt"] = datetime.now(timezone.utc).isoformat()
-        # Record the error on the current running phase
+        # Record the error on ALL running phases (parallel execution may have multiple)
         for step in execution["pipeline"]:
             if step["status"] == "running":
                 step["status"] = "failed"
                 step["output"].append("An internal error occurred during execution.")
                 step["completedAt"] = datetime.now(timezone.utc).isoformat()
-                break
         await broadcast_both(execution_id, {
             "type": "complete",
             "status": "failed",
@@ -216,7 +261,7 @@ async def run_execution(execution_id: str) -> None:
 async def _run_phase(execution_id: str, step: dict[str, Any]) -> None:
     """Execute a single pipeline phase."""
     phase = step["phase"]
-    agent_role = PHASE_AGENTS.get(phase, "developer")
+    agent_role = step.get("agentRole") or PHASE_AGENTS.get(phase, "developer")
 
     # Update step status
     step["status"] = "running"
@@ -260,7 +305,20 @@ async def _run_phase(execution_id: str, step: dict[str, Any]) -> None:
         print(f"[ORCH] Phase {phase}: CLI available={cli_available}, "
               f"claude path={shutil.which('claude')}", flush=True)
         if cli_available:
-            success = await _try_real_orchestrator(execution_id, phase, step, activity)
+            try:
+                success = await asyncio.wait_for(
+                    _try_real_orchestrator(execution_id, phase, step, activity),
+                    timeout=900,  # 15 minutes per phase
+                )
+            except asyncio.TimeoutError:
+                step["output"].append(f"Phase {phase} timed out after 15 minutes.")
+                activity["output"].append(f"Phase {phase} timed out after 15 minutes.")
+                await broadcast_both(execution_id, {
+                    "type": "output",
+                    "line": f"Phase {phase} timed out after 15 minutes.",
+                    "phase": phase,
+                })
+                success = True  # Don't fall back to simulation
             print(f"[ORCH] Phase {phase}: _try_real_orchestrator returned {success}",
                   flush=True)
             if not success:
@@ -279,19 +337,19 @@ async def _run_phase(execution_id: str, step: dict[str, Any]) -> None:
             "screenshot": snapshot,
         })
 
-        # Determine next phase and broadcast agent-connection handoff
+        # Broadcast agent-connection handoff to next group
         pipeline = execution["pipeline"]
-        current_idx = next(
-            (i for i, s in enumerate(pipeline) if s["phase"] == phase), -1,
-        )
-        if current_idx >= 0 and current_idx < len(pipeline) - 1:
-            next_phase = pipeline[current_idx + 1]["phase"]
-            next_agent = PHASE_AGENTS.get(next_phase, "developer")
+        current_group_idx = step.get("group", 0)
+        next_group_steps = [
+            s for s in pipeline if s.get("group", 0) == current_group_idx + 1
+        ]
+        for next_step in next_group_steps:
+            next_agent = next_step.get("agentRole") or PHASE_AGENTS.get(next_step["phase"], "developer")
             await broadcast_both(execution_id, {
                 "type": "agent-connection",
                 "from": agent_role,
                 "to": next_agent,
-                "label": f"{phase} \u2192 {next_phase}",
+                "label": f"{phase} \u2192 {next_step['phase']}",
                 "active": True,
                 "dataFlow": "handoff",
             })
@@ -341,15 +399,16 @@ async def _try_real_orchestrator(
     phase_prompt = PHASE_PROMPTS.get(phase, "Complete this phase of the task.")
     user_task = execution.get("task", "")
 
-    # Gather context from previous phases
+    # Gather context from previous groups (not parallel peers)
+    current_group = step.get("group", 0)
     prev_context_parts: list[str] = []
     for prev_step in execution["pipeline"]:
-        if prev_step["phase"] == phase:
+        if prev_step.get("group", 0) >= current_group:
             break
         if prev_step["output"]:
             prev_context_parts.append(
                 f"## {prev_step['phase'].title()} Phase Output\n"
-                + "\n".join(prev_step["output"][-20:])  # Last 20 lines
+                + "\n".join(prev_step["output"][-20:])
             )
     prev_context = "\n\n".join(prev_context_parts)
 
@@ -531,10 +590,21 @@ async def _try_real_orchestrator(
                                 "phase": phase,
                             })
 
+    except asyncio.CancelledError:
+        # Kill subprocess if our coroutine is cancelled (e.g., parallel peer failed)
+        process.kill()
+        await process.wait()
+        raise
     except Exception as exc:
         print(f"[ORCH] Error reading Claude CLI output: {exc}", flush=True)
+    finally:
+        # Ensure subprocess is cleaned up
+        if process.returncode is None:
+            process.kill()
+            await process.wait()
 
-    await process.wait()
+    if process.returncode is None:
+        await process.wait()
     print(f"[ORCH] Claude CLI exited with code {process.returncode}", flush=True)
 
     # Clean up temp MCP config

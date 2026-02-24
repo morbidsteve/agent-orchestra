@@ -1,5 +1,5 @@
 export type ExecutionStatus = 'running' | 'completed' | 'failed' | 'queued';
-export type PipelinePhase = 'plan' | 'develop' | 'test' | 'security' | 'report';
+export type PipelinePhase = 'plan' | 'develop' | 'develop-2' | 'test' | 'security' | 'business-eval' | 'report';
 export type PhaseStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
 export type AgentRole = string;
 export type AgentStatus = 'idle' | 'busy' | 'offline';
@@ -17,6 +17,7 @@ export interface ProjectSource {
 
 export interface PipelineStep {
   phase: PipelinePhase;
+  group: number;
   status: PhaseStatus;
   agentRole: AgentRole | null;
   startedAt: string | null;
