@@ -66,6 +66,13 @@ export function useConsoleWebSocket(conversationId: string | null): UseConsoleWe
         setCurrentPhase('plan');
         setExecutionStatus('running');
         break;
+      case 'agent-spawn':
+      case 'agent-output':
+      case 'agent-complete':
+      case 'file-activity':
+        // Pass through to messages array for downstream consumption (e.g. useDynamicAgents)
+        setMessages(prev => [...prev, msg]);
+        break;
       default:
         setMessages(prev => [...prev, msg]);
         break;

@@ -6,10 +6,11 @@ import asyncio
 import os
 import subprocess
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from backend import store
+from backend import models, store
 from backend.config import settings
 from backend.models import CreateExecutionRequest
 from backend.services.orchestrator import run_execution
@@ -158,3 +159,91 @@ async def create_execution(req: CreateExecutionRequest) -> dict:
     asyncio.create_task(_limited_run(exec_id))
 
     return execution
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Dynamic agent endpoints
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@router.get("/{execution_id}/agents")
+async def get_execution_agents(execution_id: str) -> list[dict]:
+    """List dynamic agents for an execution."""
+    agents = store.dynamic_agents.get(execution_id, {})
+    # Strip internal fields like result_event
+    return [
+        {k: v for k, v in agent.items() if k != "result_event"}
+        for agent in agents.values()
+    ]
+
+
+@router.get("/{execution_id}/files")
+async def get_execution_files(execution_id: str) -> list[dict]:
+    """Get file activity for an execution."""
+    return store.file_activities.get(execution_id, [])
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Codebase CRUD endpoints
+# ──────────────────────────────────────────────────────────────────────────────
+
+_codebase_router = APIRouter(prefix="/api/codebases", tags=["codebases"])
+
+
+@_codebase_router.post("/", status_code=201)
+async def create_codebase(req: models.CodebaseRequest) -> dict:
+    """Register a codebase (optionally clone from GitHub)."""
+    codebase_id = store.next_codebase_id()
+    now = datetime.now(timezone.utc).isoformat()
+
+    if req.git_url:
+        # Validate URL scheme — only allow https:// to prevent SSRF
+        if not req.git_url.startswith("https://"):
+            raise HTTPException(status_code=422, detail="Only https:// git URLs are allowed")
+        # Clone repo with depth limit and timeout
+        clone_dir = Path(os.path.expanduser(settings.PROJECTS_DIR)) / f"codebase-{codebase_id}"
+        clone_dir.parent.mkdir(parents=True, exist_ok=True)
+        process = await asyncio.create_subprocess_exec(
+            "git", "clone", "--depth", "1",
+            "--config", "core.hooksPath=/dev/null",
+            req.git_url, str(clone_dir),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            await asyncio.wait_for(process.wait(), timeout=120)
+        except asyncio.TimeoutError:
+            process.kill()
+            raise HTTPException(status_code=422, detail="Git clone timed out")
+        if process.returncode != 0:
+            raise HTTPException(status_code=422, detail="Git clone failed")
+        path = str(clone_dir)
+    elif req.path:
+        # Validate path is within allowed directories
+        real_path = os.path.realpath(req.path)
+        allowed_roots = [os.path.realpath("/workspace"), os.path.realpath(os.path.expanduser(settings.PROJECTS_DIR))]
+        if not any(real_path.startswith(root) for root in allowed_roots):
+            raise HTTPException(status_code=422, detail="Path must be within /workspace or projects directory")
+        if not os.path.isdir(real_path):
+            raise HTTPException(status_code=422, detail=f"Path not found: {req.path}")
+        path = real_path
+    else:
+        path = str(Path(os.path.expanduser(settings.PROJECTS_DIR)) / f"codebase-{codebase_id}")
+        Path(path).mkdir(parents=True, exist_ok=True)
+
+    codebase = {
+        "id": codebase_id,
+        "name": req.name,
+        "path": path,
+        "gitUrl": req.git_url,
+        "executionIds": [],
+        "createdAt": now,
+    }
+    store.codebases[codebase_id] = codebase
+    return codebase
+
+
+@_codebase_router.get("/")
+async def list_codebases() -> list[dict]:
+    """List all registered codebases."""
+    return list(store.codebases.values())

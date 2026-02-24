@@ -168,6 +168,8 @@ class CreateExecutionRequest(BaseModel):
     model: Literal["sonnet", "opus", "haiku"] = "sonnet"
     target: str = Field(default="", max_length=500)
     project_source: ProjectSource | None = None
+    github_url: str | None = None  # Clone from GitHub
+    codebase_id: str | None = None  # Reuse existing codebase
 
 
 class WebSocketMessage(BaseModel):
@@ -252,3 +254,58 @@ class ScreenshotRequest(BaseModel):
     milestone: str = ""
     terminal_lines: list[str] = Field(default_factory=list)
     url: str | None = None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Dynamic agent models
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class SpawnAgentRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=_to_camel,
+    )
+
+    execution_id: str
+    role: str  # e.g. "developer", "tester", "security-reviewer", custom roles too
+    name: str  # e.g. "Developer Alpha", "Test Runner"
+    task: str  # The specific task for this agent
+    wait: bool = True  # If True, block until agent completes; if False, return agent_id immediately
+    model: str | None = None  # Override model for this agent
+
+
+class SpawnAgentResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=_to_camel,
+    )
+
+    agent_id: str
+    status: str  # 'pending' | 'running' | 'completed' | 'failed'
+    output: str | None = None  # Final output if wait=True and completed
+
+
+class CodebaseRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=_to_camel,
+    )
+
+    name: str
+    git_url: str | None = None
+    path: str | None = None  # Existing local path
+
+
+class CodebaseResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=_to_camel,
+    )
+
+    id: str
+    name: str
+    path: str
+    git_url: str | None = None
+    execution_ids: list[str] = Field(default_factory=list)
+    created_at: str

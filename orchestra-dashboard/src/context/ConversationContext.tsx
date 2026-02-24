@@ -11,6 +11,10 @@ interface ConversationContextValue {
   error: string | null;
   model: string;
   setModel: (model: string) => void;
+  githubUrl: string;
+  setGithubUrl: (url: string) => void;
+  codebaseId: string | null;
+  setCodebaseId: (id: string | null) => void;
   sendMessage: (text: string) => Promise<void>;
   startConversation: (text: string, projectSource?: ProjectSource, model?: string) => Promise<void>;
   switchConversation: (id: string) => Promise<void>;
@@ -28,6 +32,8 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [model, setModel] = useState('sonnet');
+  const [githubUrl, setGithubUrl] = useState('');
+  const [codebaseId, setCodebaseId] = useState<string | null>(null);
 
   // Restore active conversation on mount
   useEffect(() => {
@@ -71,6 +77,8 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
         text,
         projectSource,
         model: selectedModel ?? model,
+        ...(githubUrl ? { github_url: githubUrl } : {}),
+        ...(codebaseId ? { codebase_id: codebaseId } : {}),
       });
       setConversation(conv);
       setConversations(prev => [conv, ...prev]);
@@ -80,7 +88,7 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [model]);
+  }, [model, githubUrl, codebaseId]);
 
   const sendMessage = useCallback(async (text: string) => {
     if (!conversation) {
@@ -90,7 +98,11 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
-      const updated = await apiSendMessage(conversation.id, { text });
+      const updated = await apiSendMessage(conversation.id, {
+        text,
+        ...(githubUrl ? { github_url: githubUrl } : {}),
+        ...(codebaseId ? { codebase_id: codebaseId } : {}),
+      });
       setConversation(updated);
       // Update in conversations list too
       setConversations(prev => prev.map(c => c.id === updated.id ? updated : c));
@@ -100,7 +112,7 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [conversation]);
+  }, [conversation, githubUrl, codebaseId]);
 
   const switchConversation = useCallback(async (id: string) => {
     setIsLoading(true);
@@ -139,12 +151,16 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
     error,
     model,
     setModel,
+    githubUrl,
+    setGithubUrl,
+    codebaseId,
+    setCodebaseId,
     sendMessage,
     startConversation,
     switchConversation,
     newConversation,
     refreshConversations,
-  }), [conversation, conversations, isLoading, error, model, sendMessage, startConversation, switchConversation, newConversation, refreshConversations]);
+  }), [conversation, conversations, isLoading, error, model, githubUrl, codebaseId, sendMessage, startConversation, switchConversation, newConversation, refreshConversations]);
 
   return (
     <ConversationContext.Provider value={value}>

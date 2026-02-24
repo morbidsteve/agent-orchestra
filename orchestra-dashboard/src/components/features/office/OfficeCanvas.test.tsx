@@ -69,7 +69,7 @@ describe('OfficeCanvas', () => {
     expect(screen.getByText('Ready')).toBeInTheDocument();
   });
 
-  it('shows current phase on orchestrator when active', () => {
+  it('shows status on orchestrator when active', () => {
     render(
       <OfficeCanvas
         officeState={makeOfficeState({
@@ -78,16 +78,18 @@ describe('OfficeCanvas', () => {
         })}
       />,
     );
-    expect(screen.getByText('develop')).toBeInTheDocument();
+    // OrchestratorDesk shows "Delegating to N agents" when agents are present
+    expect(screen.getByText('Delegating to 5 agents')).toBeInTheDocument();
   });
 
-  it('shows idle status text on idle agents', () => {
+  it('shows role labels on idle agent workstation cards', () => {
     render(<OfficeCanvas officeState={makeOfficeState()} />);
-    expect(screen.getByText('Ready to code')).toBeInTheDocument();
-    expect(screen.getByText('Standing by')).toBeInTheDocument();
-    expect(screen.getByText('Awaiting tests')).toBeInTheDocument();
-    expect(screen.getByText('Monitoring')).toBeInTheDocument();
-    expect(screen.getByText('Analyzing')).toBeInTheDocument();
+    // WorkstationCard bottom bar shows agent.role with dashes replaced by spaces
+    expect(screen.getByText('developer')).toBeInTheDocument();
+    expect(screen.getByText('developer 2')).toBeInTheDocument();
+    expect(screen.getByText('tester')).toBeInTheDocument();
+    expect(screen.getByText('devsecops')).toBeInTheDocument();
+    expect(screen.getByText('business dev')).toBeInTheDocument();
   });
 
   it('shows working status for active agents', () => {
