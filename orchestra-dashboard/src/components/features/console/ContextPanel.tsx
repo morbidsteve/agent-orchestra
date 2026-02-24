@@ -1,12 +1,14 @@
-import { Monitor, Loader, Coffee } from 'lucide-react';
+import { Monitor, Loader, Coffee, CheckCircle, XCircle } from 'lucide-react';
 import { cn } from '../../../lib/cn.ts';
 import { StreamingOutput } from '../execution/StreamingOutput.tsx';
 import type { Conversation, WsConsoleMessage } from '../../../lib/types.ts';
+import type { ExecutionWsStatus } from '../../../hooks/useConsoleWebSocket.ts';
 
 interface ContextPanelProps {
   conversation: Conversation | null;
   executionId: string | null;
   wsMessages: WsConsoleMessage[];
+  executionStatus?: ExecutionWsStatus;
 }
 
 function IdleView() {
@@ -29,7 +31,15 @@ function IdleView() {
   );
 }
 
-function ExecutionActiveView({ executionId, wsMessages }: { executionId: string; wsMessages: WsConsoleMessage[] }) {
+function ExecutionActiveView({
+  executionId,
+  wsMessages,
+  executionStatus,
+}: {
+  executionId: string;
+  wsMessages: WsConsoleMessage[];
+  executionStatus?: ExecutionWsStatus;
+}) {
   // Extract output lines from ws messages
   const outputLines = wsMessages
     .filter((m): m is Extract<WsConsoleMessage, { type: 'console-text' }> => m.type === 'console-text')
@@ -48,13 +58,22 @@ function ExecutionActiveView({ executionId, wsMessages }: { executionId: string;
     });
   }
 
+  const isCompleted = executionStatus === 'completed';
+  const isFailed = executionStatus === 'failed';
+  const isDone = isCompleted || isFailed;
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-600">
         <Monitor className="h-4 w-4 text-accent-blue" />
         <span className="text-sm font-medium text-gray-200">Execution Progress</span>
-        <span className="text-xs font-mono text-gray-500 ml-auto">{executionId.slice(0, 12)}</span>
+        {isCompleted && <CheckCircle className="h-4 w-4 text-green-400 ml-auto" />}
+        {isFailed && <XCircle className="h-4 w-4 text-red-400 ml-auto" />}
+        <span className={cn(
+          'text-xs font-mono text-gray-500',
+          !isDone && 'ml-auto',
+        )}>{executionId.slice(0, 12)}</span>
       </div>
 
       {/* Agent status */}
@@ -82,7 +101,21 @@ function ExecutionActiveView({ executionId, wsMessages }: { executionId: string;
       {/* Streaming output */}
       <div className="flex-1 overflow-y-auto p-4">
         {outputLines.length > 0 ? (
-          <StreamingOutput lines={outputLines} streaming className="max-h-full" />
+          <StreamingOutput lines={outputLines} streaming={!isDone} className="max-h-full" />
+        ) : isDone ? (
+          <div className="flex flex-col items-center justify-center h-full">
+            {isCompleted ? (
+              <>
+                <CheckCircle className="h-5 w-5 text-green-400 mb-2" />
+                <p className="text-xs text-gray-400">Execution completed</p>
+              </>
+            ) : (
+              <>
+                <XCircle className="h-5 w-5 text-red-400 mb-2" />
+                <p className="text-xs text-red-400">Execution failed</p>
+              </>
+            )}
+          </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full">
             <Loader className="h-5 w-5 text-accent-blue animate-spin mb-2" />
@@ -94,7 +127,7 @@ function ExecutionActiveView({ executionId, wsMessages }: { executionId: string;
   );
 }
 
-export function ContextPanel({ conversation, executionId, wsMessages }: ContextPanelProps) {
+export function ContextPanel({ conversation, executionId, wsMessages, executionStatus }: ContextPanelProps) {
   // Determine view based on state
   const hasExecution = executionId !== null;
 
@@ -102,5 +135,11 @@ export function ContextPanel({ conversation, executionId, wsMessages }: ContextP
     return <IdleView />;
   }
 
-  return <ExecutionActiveView executionId={executionId} wsMessages={wsMessages} />;
+  return (
+    <ExecutionActiveView
+      executionId={executionId}
+      wsMessages={wsMessages}
+      executionStatus={executionStatus}
+    />
+  );
 }

@@ -18,7 +18,7 @@ export function ConsolePage() {
   const conversationId = conversation?.id ?? null;
   const executionId = conversation?.activeExecutionId ?? null;
 
-  const { messages: wsMessages } = useConsoleWebSocket(conversationId);
+  const { messages: wsMessages, executionStatus } = useConsoleWebSocket(conversationId);
 
   const handleSend = useCallback(async (text: string) => {
     if (conversation) {
@@ -49,6 +49,7 @@ export function ConsolePage() {
           conversation={conversation}
           executionId={executionId}
           wsMessages={wsMessages}
+          executionStatus={executionStatus}
         />
       </div>
     </div>

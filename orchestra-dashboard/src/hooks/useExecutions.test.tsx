@@ -45,4 +45,12 @@ describe('useExecutions', () => {
     expect(stats.failed).toBe(1);
     expect(stats.queued).toBe(1);
   });
+
+  it('returns latest as an active execution when one exists', () => {
+    const { result } = renderHook(() => useExecutions(), { wrapper });
+    // With mock data, there are active executions (running/queued),
+    // so latest should be one of them
+    expect(result.current.latest).not.toBeNull();
+    expect(['running', 'queued']).toContain(result.current.latest!.status);
+  });
 });
