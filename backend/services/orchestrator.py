@@ -239,6 +239,9 @@ async def run_execution(execution_id: str) -> None:
         await broadcast_both(execution_id, {"type": "complete", "status": "completed"})
 
     except Exception as exc:
+        import traceback
+        print(f"[ORCH] run_execution FAILED: {exc}", flush=True)
+        traceback.print_exc()
         execution["status"] = "failed"
         execution["completedAt"] = datetime.now(timezone.utc).isoformat()
         # Record the error on ALL running phases (parallel execution may have multiple)
