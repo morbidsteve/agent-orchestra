@@ -1,11 +1,23 @@
 import { useState } from 'react';
-import { Copy, Check, ExternalLink, Github, Bot, Loader2 } from 'lucide-react';
+import { Copy, Check, ExternalLink, Github, Bot, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '../lib/cn.ts';
 import { useAuthStatus } from '../hooks/useAuthStatus.ts';
 
 export function SettingsPage() {
-  const { authStatus, loginSession, loading, loginInProgress, startLogin, logout } = useAuthStatus();
+  const {
+    authStatus,
+    loginSession,
+    claudeLoginSession,
+    loading,
+    loginInProgress,
+    claudeLoginInProgress,
+    startLogin,
+    startClaudeAuth,
+    logout,
+  } = useAuthStatus();
   const [copied, setCopied] = useState(false);
+  const [githubError, setGithubError] = useState<string | null>(null);
+  const [claudeError, setClaudeError] = useState<string | null>(null);
 
   const handleCopyCode = async (code: string) => {
     await navigator.clipboard.writeText(code);
@@ -13,9 +25,26 @@ export function SettingsPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleGithubLogin = async () => {
+    setGithubError(null);
+    const response = await startLogin();
+    if (!response || response.status === 'error') {
+      setGithubError('Failed to start GitHub login. Is the gh CLI installed?');
+    }
+  };
+
+  const handleClaudeLogin = async () => {
+    setClaudeError(null);
+    const response = await startClaudeAuth();
+    if (!response || response.status === 'error') {
+      setClaudeError('Failed to start Claude login. Is the Claude CLI installed?');
+    }
+  };
+
   const githubConnected = authStatus?.github?.authenticated ?? false;
   const claudeConnected = authStatus?.claude?.authenticated ?? false;
   const deviceCode = loginSession?.deviceCode;
+  const claudeAuthUrl = claudeLoginSession?.authUrl;
 
   return (
     <div className="space-y-6">
@@ -92,12 +121,20 @@ export function SettingsPage() {
             </div>
           </div>
         ) : (
-          <button
-            onClick={() => void startLogin()}
-            className="rounded-lg bg-accent-blue px-4 py-2 text-sm font-medium text-white hover:bg-accent-blue/80 transition-colors"
-          >
-            Connect GitHub
-          </button>
+          <div className="space-y-3">
+            <button
+              onClick={() => void handleGithubLogin()}
+              className="rounded-lg bg-accent-blue px-4 py-2 text-sm font-medium text-white hover:bg-accent-blue/80 transition-colors"
+            >
+              Connect GitHub
+            </button>
+            {(githubError || loginSession?.error) && (
+              <div className="flex items-center gap-2 text-sm text-red-400">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {githubError || loginSession?.error}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -132,10 +169,40 @@ export function SettingsPage() {
           <p className="text-sm text-gray-300">
             Claude Code CLI is authenticated and ready.
           </p>
+        ) : claudeLoginInProgress && claudeAuthUrl ? (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-300">
+              Open the link below to authorize Claude Code:
+            </p>
+            <a
+              href={claudeAuthUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg bg-accent-blue px-4 py-2 text-sm font-medium text-white hover:bg-accent-blue/80 transition-colors"
+            >
+              Open Authorization Page
+              <ExternalLink className="h-4 w-4" />
+            </a>
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Waiting for authorization...
+            </div>
+          </div>
         ) : (
-          <p className="text-sm text-gray-400">
-            Run <code className="rounded bg-surface-700 px-1.5 py-0.5 text-xs font-mono">claude auth login</code> in your terminal to authenticate.
-          </p>
+          <div className="space-y-3">
+            <button
+              onClick={() => void handleClaudeLogin()}
+              className="rounded-lg bg-accent-blue px-4 py-2 text-sm font-medium text-white hover:bg-accent-blue/80 transition-colors"
+            >
+              Connect Claude
+            </button>
+            {(claudeError || claudeLoginSession?.error) && (
+              <div className="flex items-center gap-2 text-sm text-red-400">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {claudeError || claudeLoginSession?.error}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

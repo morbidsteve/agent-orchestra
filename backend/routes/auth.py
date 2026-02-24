@@ -6,8 +6,10 @@ from fastapi import APIRouter, HTTPException
 
 from backend.services.auth import (
     get_auth_status,
+    get_claude_login_status,
     get_login_session_status,
     github_logout,
+    start_claude_login,
     start_github_login,
 )
 
@@ -39,3 +41,18 @@ async def github_login_status() -> dict:
 async def github_logout_route() -> dict:
     """Logout from GitHub."""
     return await github_logout()
+
+
+@router.post("/claude/login")
+async def claude_login() -> dict:
+    """Initiate Claude Code login flow."""
+    try:
+        return await start_claude_login()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.get("/claude/status")
+async def claude_login_status() -> dict:
+    """Poll the current Claude login session progress."""
+    return get_claude_login_status()

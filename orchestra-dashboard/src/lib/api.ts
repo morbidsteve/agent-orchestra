@@ -1,4 +1,4 @@
-import type { Execution, AgentInfo, Finding, WorkflowType, ProjectSource, AuthStatus, GitHubLoginResponse, GitHubLoginStatus, BrowseResponse, Conversation, Screenshot } from './types.ts';
+import type { Execution, AgentInfo, Finding, WorkflowType, ProjectSource, AuthStatus, GitHubLoginResponse, GitHubLoginStatus, ClaudeLoginResponse, ClaudeLoginStatus, BrowseResponse, Conversation, Screenshot } from './types.ts';
 export type { AgentInfo };
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -71,6 +71,14 @@ export function fetchGithubLoginStatus(): Promise<GitHubLoginStatus> {
 
 export function githubLogout(): Promise<{ success: boolean }> {
   return apiFetch<{ success: boolean }>('/api/auth/github/logout', { method: 'POST' });
+}
+
+export function startClaudeLogin(): Promise<ClaudeLoginResponse> {
+  return apiFetch<ClaudeLoginResponse>('/api/auth/claude/login', { method: 'POST' });
+}
+
+export function fetchClaudeLoginStatus(): Promise<ClaudeLoginStatus> {
+  return apiFetch<ClaudeLoginStatus>('/api/auth/claude/status');
 }
 
 export function createAgent(params: {
