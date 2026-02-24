@@ -70,12 +70,20 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
     }));
 
   // Show explicit + orchestrator connections when any exist, idle defaults otherwise
+  // Deduplicate by from-to key, preferring active connections
   const hasActivity = connections.length > 0 || orchestratorConnections.length > 0;
-  const displayConnections = hasActivity
+  const mergedConnections = hasActivity
     ? [...orchestratorConnections, ...connections]
     : agents.length > 0
       ? DEFAULT_IDLE_CONNECTIONS.filter(c => agentPositions.has(c.to))
       : DEFAULT_IDLE_CONNECTIONS;
+  const connMap = new Map<string, AgentConnection>();
+  for (const c of mergedConnections) {
+    const key = `${c.from}-${c.to}`;
+    const existing = connMap.get(key);
+    if (!existing || (c.active && !existing.active)) connMap.set(key, c);
+  }
+  const displayConnections = [...connMap.values()];
 
   return (
     <div
