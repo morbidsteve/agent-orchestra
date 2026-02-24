@@ -109,8 +109,7 @@ describe('SettingsPage', () => {
     });
     renderWithProviders(<SettingsPage />);
     expect(screen.getByText('Open Authorization Page')).toBeInTheDocument();
-    const waitingTexts = screen.getAllByText('Waiting for authorization...');
-    expect(waitingTexts.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/paste it below/)).toBeInTheDocument();
   });
 
   it('shows loading state', () => {

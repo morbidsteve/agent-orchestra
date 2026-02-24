@@ -154,11 +154,11 @@ describe('ClaudeAuthCard', () => {
         compact
       />,
     );
-    expect(screen.getByText('Open the link below to authorize Claude Code:')).toBeInTheDocument();
+    expect(screen.getByText(/Open the link below and authorize Claude Code/)).toBeInTheDocument();
     const link = screen.getByRole('link', { name: /Open Authorization Page/i });
     expect(link).toHaveAttribute('href', 'https://example.com/auth');
     expect(link).toHaveAttribute('target', '_blank');
-    expect(screen.getByText('Waiting for authorization...')).toBeInTheDocument();
+    expect(screen.getByText(/paste it below/)).toBeInTheDocument();
   });
 
   // ── Default state with connect button ───────────────────────────────

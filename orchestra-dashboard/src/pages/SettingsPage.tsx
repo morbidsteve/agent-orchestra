@@ -41,9 +41,10 @@ export function SettingsPage() {
   };
 
   const handleSubmitClaudeCode = async (code: string) => {
+    setClaudeError(null);
     const success = await submitClaudeCode(code);
     if (!success) {
-      setClaudeError('Failed to submit authorization code. Please try again.');
+      setClaudeError('Token exchange failed. Double-check the code and try again.');
     }
   };
 
