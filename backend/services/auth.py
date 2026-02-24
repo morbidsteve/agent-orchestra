@@ -40,27 +40,42 @@ async def get_auth_status() -> dict:
     return {"github": github, "claude": claude}
 
 
+_GH_HOSTS_PATH = os.path.expanduser("~/.config/gh/hosts.yml")
+
+
 async def _get_github_status() -> dict:
-    """Run `gh auth status` and parse the output."""
-    if not shutil.which("gh"):
-        return {"authenticated": False, "username": None, "error": "gh CLI not installed"}
-
+    """Check GitHub auth by reading the gh hosts config directly."""
+    # Fast path: read the config file gh uses
     try:
-        process = await asyncio.create_subprocess_exec(
-            "gh", "auth", "status",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
-        output = (stdout or b"").decode() + (stderr or b"").decode()
+        if os.path.isfile(_GH_HOSTS_PATH):
+            with open(_GH_HOSTS_PATH) as f:
+                content = f.read()
+            # Simple YAML parse — look for oauth_token and user under github.com
+            if "oauth_token:" in content:
+                user_match = re.search(r"user:\s*(\S+)", content)
+                username = user_match.group(1) if user_match else None
+                return {"authenticated": True, "username": username}
+    except OSError:
+        pass
 
-        # gh auth status outputs to stderr on success
-        match = re.search(r"Logged in to github\.com.*?as\s+(\S+)", output)
-        if match:
-            return {"authenticated": True, "username": match.group(1)}
-        return {"authenticated": False, "username": None}
-    except (asyncio.TimeoutError, OSError):
-        return {"authenticated": False, "username": None, "error": "Failed to check status"}
+    # Fallback: try the CLI
+    if shutil.which("gh"):
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "gh", "auth", "status",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
+            output = (stdout or b"").decode() + (stderr or b"").decode()
+
+            match = re.search(r"Logged in to github\.com.*?as\s+(\S+)", output)
+            if match:
+                return {"authenticated": True, "username": match.group(1)}
+        except (asyncio.TimeoutError, OSError):
+            pass
+
+    return {"authenticated": False, "username": None}
 
 
 async def _get_claude_status() -> dict:
@@ -195,6 +210,44 @@ async def start_github_login() -> dict:
                 "error": str(exc)}
 
 
+async def _github_fetch_username(token: str) -> str | None:
+    """Call the GitHub API to get the authenticated user's login."""
+    try:
+        req = urllib.request.Request(
+            "https://api.github.com/user",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "agent-orchestra",
+            },
+        )
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(
+            None, lambda: urllib.request.urlopen(req, timeout=10),
+        )
+        data = json.loads(resp.read().decode())
+        return data.get("login")
+    except Exception:
+        logger.exception("GitHub OAuth: failed to fetch username")
+        return None
+
+
+def _write_gh_hosts_config(token: str, username: str | None) -> None:
+    """Write ~/.config/gh/hosts.yml so the gh CLI is authenticated."""
+    hosts_dir = os.path.dirname(_GH_HOSTS_PATH)
+    os.makedirs(hosts_dir, exist_ok=True)
+    content = (
+        "github.com:\n"
+        f"    oauth_token: {token}\n"
+        f"    user: {username or ''}\n"
+        "    git_protocol: https\n"
+    )
+    with open(_GH_HOSTS_PATH, "w") as f:
+        f.write(content)
+    os.chmod(_GH_HOSTS_PATH, 0o600)
+    logger.info("GitHub OAuth: wrote hosts config to %s", _GH_HOSTS_PATH)
+
+
 async def _poll_github_device_flow(
     device_code: str, interval: int, expires_in: int,
 ) -> None:
@@ -230,22 +283,19 @@ async def _poll_github_device_flow(
 
             if "access_token" in result:
                 access_token = result["access_token"]
-                logger.info("GitHub OAuth: got access token, writing gh config")
+                token_type = result.get("token_type", "bearer")
+                logger.info("GitHub OAuth: got access token (type=%s)", token_type)
 
-                # Write the token so `gh` CLI is authenticated
-                proc = await asyncio.create_subprocess_exec(
-                    "gh", "auth", "login", "--with-token",
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                await proc.communicate(input=access_token.encode())
+                # Fetch username from the GitHub API
+                username = await _github_fetch_username(access_token)
 
-                status = await _get_github_status()
+                # Write the gh hosts config directly
+                _write_gh_hosts_config(access_token, username)
+
                 if _login_session:
                     _login_session["status"] = "authenticated"
-                    _login_session["username"] = status.get("username")
-                logger.info("GitHub OAuth: authenticated as %s", status.get("username"))
+                    _login_session["username"] = username
+                logger.info("GitHub OAuth: authenticated as %s", username)
                 return
 
             error = result.get("error")
