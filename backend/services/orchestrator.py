@@ -46,32 +46,50 @@ PHASE_AGENTS: dict[str, str] = {
 # Phase-specific prompts for the Claude Code CLI
 # ──────────────────────────────────────────────────────────────────────────────
 
+_AUTONOMOUS_PREAMBLE = (
+    "IMPORTANT: You are running as an autonomous agent in a pipeline. "
+    "You have access to these tools: Read, Edit, Write, Bash, Glob, Grep, "
+    "and mcp__orchestra__ask_user. "
+    "Do NOT attempt to use AskUserQuestion, EnterPlanMode, Task, Skill, or any other "
+    "interactive/delegation tools — they are unavailable.\n\n"
+    "If you need clarification from the user, call the mcp__orchestra__ask_user tool "
+    "with your question (and optionally a list of suggested answers). The question will "
+    "appear in the Orchestra dashboard and you will receive the user's reply. Only ask "
+    "when truly necessary — prefer making reasonable decisions autonomously.\n\n"
+)
+
 PHASE_PROMPTS: dict[str, str] = {
     "plan": (
+        f"{_AUTONOMOUS_PREAMBLE}"
         "You are a senior developer in planning mode. Analyze the task below and create "
         "a concrete development plan. Identify what files need to change, what new files "
         "to create, and outline the implementation approach. Do NOT write code yet — just plan.\n\n"
-        "Output a clear, numbered plan."
+        "Output a clear, numbered plan. Do NOT wait for approval — output your plan and "
+        "consider this phase complete so the pipeline can proceed autonomously."
     ),
     "develop": (
+        f"{_AUTONOMOUS_PREAMBLE}"
         "You are a senior developer. Implement the task below by writing real code. "
         "Create files, modify existing ones, and build the feature. Use the tools available "
         "to you (Read, Edit, Write, Bash, Glob, Grep) to do actual work in the repository.\n\n"
         "Write production-quality code following existing project conventions."
     ),
     "test": (
+        f"{_AUTONOMOUS_PREAMBLE}"
         "You are a QA engineer. Write comprehensive tests for the changes made in this project. "
         "Run the test suite and fix any failures. Use Bash to run tests, Read to understand code, "
         "and Write/Edit to create test files.\n\n"
         "Ensure all tests pass before finishing."
     ),
     "security": (
+        f"{_AUTONOMOUS_PREAMBLE}"
         "You are a DevSecOps security engineer. Review the codebase for security vulnerabilities: "
         "XSS, injection, exposed secrets, insecure dependencies, OWASP Top 10 issues. "
         "Use Read and Grep to search the code. Do NOT modify code — only report findings.\n\n"
         "List any findings with severity (critical/high/medium/low) and remediation steps."
     ),
     "report": (
+        f"{_AUTONOMOUS_PREAMBLE}"
         "You are a technical writer. Summarize what was accomplished in this execution. "
         "Review the project state, recent changes, test results, and any security findings. "
         "Produce a concise executive summary of the work done."
@@ -350,6 +368,33 @@ async def _try_real_orchestrator(
 
     model = execution.get("model", "sonnet")
 
+    # Create temporary MCP config for the ask_user bridge
+    import tempfile
+    mcp_bridge_path = os.path.join(os.path.dirname(__file__), "..", "mcp_bridge.py")
+    mcp_bridge_path = os.path.abspath(mcp_bridge_path)
+    api_url = os.environ.get("ORCHESTRA_API_URL", "http://127.0.0.1:8000")
+
+    mcp_config = {
+        "mcpServers": {
+            "orchestra": {
+                "command": "python",
+                "args": [mcp_bridge_path],
+                "env": {
+                    "ORCHESTRA_EXECUTION_ID": execution_id,
+                    "ORCHESTRA_API_URL": api_url,
+                    "ORCHESTRA_INTERNAL_TOKEN": store.internal_api_token,
+                },
+            }
+        }
+    }
+
+    mcp_config_file = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".json", prefix="mcp_config_", delete=False,
+    )
+    json.dump(mcp_config, mcp_config_file)
+    mcp_config_file.close()
+    mcp_config_path = mcp_config_file.name
+
     cmd = [
         claude_path,
         "-p", full_prompt,
@@ -358,7 +403,8 @@ async def _try_real_orchestrator(
         "--dangerously-skip-permissions",
         "--model", model,
         "--no-session-persistence",
-        "--allowedTools", "Read,Edit,Write,Bash,Glob,Grep",
+        "--mcp-config", mcp_config_path,
+        "--allowedTools", "Read,Edit,Write,Bash,Glob,Grep,mcp__orchestra__ask_user",
     ]
 
     # Unset CLAUDECODE to avoid nested session detection
@@ -441,6 +487,9 @@ async def _try_real_orchestrator(
                             tool_line = f"[Grep] {tool_input['pattern']}"
                         elif tool_name == "Glob" and "pattern" in tool_input:
                             tool_line = f"[Glob] {tool_input['pattern']}"
+                        elif tool_name == "mcp__orchestra__ask_user":
+                            q = tool_input.get("question", "")
+                            tool_line = f"[Asking user] {q}"
 
                         step["output"].append(tool_line)
                         activity["output"].append(tool_line)
@@ -487,6 +536,12 @@ async def _try_real_orchestrator(
 
     await process.wait()
     print(f"[ORCH] Claude CLI exited with code {process.returncode}", flush=True)
+
+    # Clean up temp MCP config
+    try:
+        os.unlink(mcp_config_path)
+    except OSError:
+        pass
 
     # If the process failed with a non-zero exit code, still return True
     # (we tried, it ran, it just had errors — don't fall back to simulation)

@@ -170,3 +170,17 @@ export function getScreenshotImageUrl(id: string): string {
   const base = import.meta.env.VITE_API_URL || '';
   return `${base}/api/screenshots/${encodeURIComponent(id)}/image`;
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Internal: Question/Answer relay (REST fallback)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export function submitQuestionAnswer(questionId: string, answer: string): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(
+    `/api/internal/question/${encodeURIComponent(questionId)}/answer`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ answer }),
+    },
+  );
+}
