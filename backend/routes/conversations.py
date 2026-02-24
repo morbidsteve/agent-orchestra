@@ -373,11 +373,19 @@ async def console_ws(websocket: WebSocket, conversation_id: str) -> None:
                             await _handle_user_message(conversation, text, model)
 
                 elif msg_type == "clarification-response":
-                    # Handle clarification response
+                    # Route the answer back to the waiting agent
+                    question_id = message.get("questionId", "")
+                    answer = message.get("answer", "")
+                    entry = store.pending_questions.get(question_id)
+                    if entry and entry["answer"] is None:
+                        entry["answer"] = answer
+                        entry["event"].set()
+                        from backend.routes.internal import cleanup_question
+                        cleanup_question(question_id)
+                    # Also record as a conversation message
                     conversation = store.conversations.get(conversation_id)
-                    if conversation:
-                        response_text = message.get("text", "")
-                        resp_msg = _make_message("user", response_text)
+                    if conversation and answer:
+                        resp_msg = _make_message("user", answer)
                         conversation["messages"].append(resp_msg)
 
             except json.JSONDecodeError:

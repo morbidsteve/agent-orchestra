@@ -7,6 +7,13 @@ import type {
 
 export type ExecutionWsStatus = 'running' | 'completed' | 'failed' | null;
 
+export interface PendingClarification {
+  questionId: string;
+  question: string;
+  options?: string[];
+  required: boolean;
+}
+
 export interface UseConsoleWebSocketReturn {
   messages: WsConsoleMessage[];
   connected: boolean;
@@ -15,6 +22,8 @@ export interface UseConsoleWebSocketReturn {
   screenshots: Screenshot[];
   businessEval: Record<string, unknown> | null;
   executionStatus: ExecutionWsStatus;
+  pendingQuestion: PendingClarification | null;
+  sendAnswer: (questionId: string, answer: string) => void;
 }
 
 export function useConsoleWebSocket(conversationId: string | null): UseConsoleWebSocketReturn {
@@ -25,9 +34,21 @@ export function useConsoleWebSocket(conversationId: string | null): UseConsoleWe
   const [screenshots, setScreenshots] = useState<Screenshot[]>([]);
   const [businessEval, setBusinessEval] = useState<Record<string, unknown> | null>(null);
   const [executionStatus, setExecutionStatus] = useState<ExecutionWsStatus>(null);
+  const [pendingQuestion, setPendingQuestion] = useState<PendingClarification | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const sendAnswer = useCallback((questionId: string, answer: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'clarification-response',
+        questionId,
+        answer,
+      }));
+      setPendingQuestion(null);
+    }
+  }, []);
 
   const handleMessage = useCallback((msg: WsConsoleMessage) => {
     switch (msg.type) {
@@ -84,6 +105,15 @@ export function useConsoleWebSocket(conversationId: string | null): UseConsoleWe
         }
         break;
       }
+      case 'clarification':
+        setPendingQuestion({
+          questionId: (msg as Record<string, string>).questionId,
+          question: (msg as Record<string, string>).question,
+          options: (msg as Record<string, string[]>).options,
+          required: (msg as Record<string, boolean>).required ?? true,
+        });
+        setMessages(prev => [...prev, msg]);
+        break;
       case 'agent-spawn':
       case 'agent-output':
       case 'agent-complete':
@@ -139,6 +169,7 @@ export function useConsoleWebSocket(conversationId: string | null): UseConsoleWe
       setScreenshots([]);
       setBusinessEval(null);
       setExecutionStatus(null);
+      setPendingQuestion(null);
     };
   }, [conversationId, handleMessage]);
 
@@ -150,5 +181,7 @@ export function useConsoleWebSocket(conversationId: string | null): UseConsoleWe
     screenshots,
     businessEval,
     executionStatus,
+    pendingQuestion,
+    sendAnswer,
   };
 }
