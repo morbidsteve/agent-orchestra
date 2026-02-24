@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import shutil
 
@@ -53,12 +54,23 @@ async def _get_claude_status() -> dict:
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
-        output = (stdout or b"").decode() + (stderr or b"").decode()
+        output = (stdout or b"").decode().strip()
 
-        # If exit code is 0, consider authenticated
-        if process.returncode == 0:
-            return {"authenticated": True, "status": output.strip()}
-        return {"authenticated": False, "status": output.strip()}
+        if process.returncode == 0 and output:
+            # claude auth status outputs JSON: {"loggedIn": true, "email": "...", ...}
+            try:
+                data = json.loads(output)
+                if data.get("loggedIn"):
+                    return {
+                        "authenticated": True,
+                        "email": data.get("email"),
+                        "authMethod": data.get("authMethod"),
+                    }
+            except json.JSONDecodeError:
+                pass
+            # Fallback: exit 0 means authenticated even if output isn't JSON
+            return {"authenticated": True}
+        return {"authenticated": False}
     except (asyncio.TimeoutError, OSError):
         return {"authenticated": False, "error": "Failed to check status"}
 
@@ -273,6 +285,12 @@ async def start_claude_login() -> dict:
 
     if not shutil.which("claude"):
         raise RuntimeError("Claude CLI not installed")
+
+    # Check if already authenticated — no need to spawn login
+    status = await _get_claude_status()
+    if status.get("authenticated"):
+        _claude_login_session = {"status": "authenticated"}
+        return {"authUrl": None, "status": "already_authenticated"}
 
     process = await asyncio.create_subprocess_exec(
         "claude", "auth", "login",

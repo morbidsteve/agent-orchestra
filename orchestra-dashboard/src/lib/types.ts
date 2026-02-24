@@ -99,7 +99,8 @@ export interface GitHubAuthInfo {
 
 export interface ClaudeAuthInfo {
   authenticated: boolean;
-  status?: string;
+  email?: string | null;
+  authMethod?: string | null;
   error?: string;
 }
 
