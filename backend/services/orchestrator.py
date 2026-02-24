@@ -149,8 +149,10 @@ async def run_execution(execution_id: str) -> None:
     progresses.  Falls back to simulated execution when the real
     orchestrator is not available.
     """
+    print(f"[ORCH] run_execution called for {execution_id}", flush=True)
     execution = store.executions.get(execution_id)
     if execution is None:
+        print(f"[ORCH] execution {execution_id} NOT FOUND in store!", flush=True)
         return
 
     now = datetime.now(timezone.utc).isoformat()
@@ -237,16 +239,17 @@ async def _run_phase(execution_id: str, step: dict[str, Any]) -> None:
     try:
         # Only try the real orchestrator if dependencies are available
         cli_available = _check_orchestrator_available()
-        logger.info("Phase %s: CLI available=%s, claude path=%s",
-                     phase, cli_available, shutil.which("claude"))
+        print(f"[ORCH] Phase {phase}: CLI available={cli_available}, "
+              f"claude path={shutil.which('claude')}", flush=True)
         if cli_available:
             success = await _try_real_orchestrator(execution_id, phase, step, activity)
-            logger.info("Phase %s: _try_real_orchestrator returned %s", phase, success)
+            print(f"[ORCH] Phase {phase}: _try_real_orchestrator returned {success}",
+                  flush=True)
             if not success:
-                logger.warning("Phase %s: falling back to simulation", phase)
+                print(f"[ORCH] Phase {phase}: FALLING BACK TO SIMULATION", flush=True)
                 await _simulate_phase(execution_id, phase, step, activity)
         else:
-            logger.warning("Phase %s: CLI not available, using simulation", phase)
+            print(f"[ORCH] Phase {phase}: CLI NOT AVAILABLE, using simulation", flush=True)
             await _simulate_phase(execution_id, phase, step, activity)
     finally:
         # Capture terminal snapshot before marking agent as done
@@ -313,7 +316,7 @@ async def _try_real_orchestrator(
 
     claude_path = shutil.which("claude")
     if not claude_path:
-        logger.error("_try_real_orchestrator: claude binary not found on PATH")
+        print("[ORCH] _try_real_orchestrator: claude binary NOT FOUND on PATH", flush=True)
         return False
 
     # Build the prompt: phase instructions + user task + previous context
@@ -358,7 +361,9 @@ async def _try_real_orchestrator(
     # Unset CLAUDECODE to avoid nested session detection
     env = {**os.environ, "CLAUDECODE": ""}
 
-    logger.info("Running Claude CLI: %s (cwd=%s, model=%s)", claude_path, cwd, model)
+    print(f"[ORCH] Running Claude CLI: {claude_path} (cwd={cwd}, model={model})",
+          flush=True)
+    print(f"[ORCH] Command: {' '.join(cmd[:6])}...", flush=True)
 
     try:
         process = await asyncio.create_subprocess_exec(
@@ -368,9 +373,9 @@ async def _try_real_orchestrator(
             cwd=cwd,
             env=env,
         )
-        logger.info("Claude CLI process started (pid=%s)", process.pid)
+        print(f"[ORCH] Claude CLI process started (pid={process.pid})", flush=True)
     except (FileNotFoundError, OSError) as exc:
-        logger.error("Failed to start Claude CLI: %s", exc)
+        print(f"[ORCH] FAILED to start Claude CLI: {exc}", flush=True)
         return False
 
     assert process.stdout is not None
@@ -474,11 +479,11 @@ async def _try_real_orchestrator(
                                 "phase": phase,
                             })
 
-    except Exception:
-        logger.exception("Error reading Claude CLI output")
+    except Exception as exc:
+        print(f"[ORCH] Error reading Claude CLI output: {exc}", flush=True)
 
     await process.wait()
-    logger.info("Claude CLI exited with code %s", process.returncode)
+    print(f"[ORCH] Claude CLI exited with code {process.returncode}", flush=True)
 
     # If the process failed with a non-zero exit code, still return True
     # (we tried, it ran, it just had errors — don't fall back to simulation)
