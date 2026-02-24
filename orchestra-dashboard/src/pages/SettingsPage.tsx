@@ -13,6 +13,7 @@ export function SettingsPage() {
     claudeLoginInProgress,
     startLogin,
     startClaudeAuth,
+    submitClaudeCode,
     logout,
   } = useAuthStatus();
   const [githubError, setGithubError] = useState<string | null>(null);
@@ -39,6 +40,13 @@ export function SettingsPage() {
     }
   };
 
+  const handleSubmitClaudeCode = async (code: string) => {
+    const success = await submitClaudeCode(code);
+    if (!success) {
+      setClaudeError('Failed to submit authorization code. Please try again.');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-100">Settings</h1>
@@ -61,6 +69,7 @@ export function SettingsPage() {
         loading={loading}
         claudeLoginInProgress={claudeLoginInProgress}
         onLogin={() => void handleClaudeLogin()}
+        onSubmitCode={handleSubmitClaudeCode}
         error={claudeError}
       />
     </div>

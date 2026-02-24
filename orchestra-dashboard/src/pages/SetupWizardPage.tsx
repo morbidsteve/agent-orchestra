@@ -22,6 +22,7 @@ export function SetupWizardPage() {
     claudeLoginInProgress,
     startLogin,
     startClaudeAuth,
+    submitClaudeCode,
     logout,
   } = useAuthStatus();
 
@@ -54,6 +55,13 @@ export function SetupWizardPage() {
       // polling will pick it up
     } else if (response.status === 'error') {
       setClaudeError('Failed to start Claude login. Is the Claude CLI installed?');
+    }
+  };
+
+  const handleSubmitClaudeCode = async (code: string) => {
+    const success = await submitClaudeCode(code);
+    if (!success) {
+      setClaudeError('Failed to submit authorization code. Please try again.');
     }
   };
 
@@ -106,6 +114,7 @@ export function SetupWizardPage() {
                 loading={loading}
                 claudeLoginInProgress={claudeLoginInProgress}
                 onLogin={handleClaudeLogin}
+                onSubmitCode={handleSubmitClaudeCode}
                 error={claudeError}
                 compact
               />

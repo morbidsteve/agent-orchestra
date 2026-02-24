@@ -26,6 +26,7 @@ const defaultHookReturn = {
   claudeLoginInProgress: false,
   startLogin: vi.fn(),
   startClaudeAuth: vi.fn(),
+  submitClaudeCode: vi.fn().mockResolvedValue(false),
   logout: vi.fn(),
 };
 
