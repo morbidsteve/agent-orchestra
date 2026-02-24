@@ -13,6 +13,7 @@ class Settings:
     ORCHESTRATOR_PATH: str = "/workspace/orchestrator.py"
     DEFAULT_MODEL: str = "sonnet"
     PROJECTS_DIR: str = os.path.expanduser("~/orchestra-projects")
+    BROWSE_ROOT: str = os.environ.get("BROWSE_ROOT", "/")
 
 
 settings = Settings()

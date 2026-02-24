@@ -136,3 +136,10 @@ export interface OrchestraActions {
   deleteAgent: (role: string) => Promise<void>;
   refetch: () => void;
 }
+
+export interface BrowseResponse {
+  current: string;
+  parent: string | null;
+  directories: string[];
+  truncated: boolean;
+}

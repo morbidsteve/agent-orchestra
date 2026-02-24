@@ -181,3 +181,15 @@ class WebSocketMessage(BaseModel):
     phase: str | None = None
     status: str | None = None
     finding: dict | None = None
+
+
+class BrowseResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        alias_generator=_to_camel,
+    )
+
+    current: str
+    parent: str | None = None
+    directories: list[str] = Field(default_factory=list)
+    truncated: bool = False

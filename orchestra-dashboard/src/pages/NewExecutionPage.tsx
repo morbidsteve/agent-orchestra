@@ -7,7 +7,8 @@ import { TextArea } from '../components/ui/TextArea.tsx';
 import { Input } from '../components/ui/Input.tsx';
 import { cn } from '../lib/cn.ts';
 import type { WorkflowType, ProjectSourceType } from '../lib/types.ts';
-import { GitBranch, FileSearch, ShieldCheck, Lightbulb, Zap, Play, Clock, Cpu, Loader2, FolderOpen, Globe, Plus } from 'lucide-react';
+import { GitBranch, FileSearch, ShieldCheck, Lightbulb, Zap, Play, Clock, Cpu, Loader2, FolderOpen, Globe, Plus, FolderSearch } from 'lucide-react';
+import { DirectoryBrowserModal } from '../components/features/execution/DirectoryBrowserModal.tsx';
 import type { LucideIcon } from 'lucide-react';
 
 const workflowIcons: Record<string, LucideIcon> = {
@@ -28,6 +29,7 @@ export function NewExecutionPage() {
   const [loading, setLoading] = useState(false);
   const [sourceType, setSourceType] = useState<ProjectSourceType>('local');
   const [sourcePath, setSourcePath] = useState('');
+  const [browseOpen, setBrowseOpen] = useState(false);
 
   const handleStart = async () => {
     if (!task.trim() || loading) return;
@@ -133,14 +135,24 @@ export function NewExecutionPage() {
           })}
         </div>
         {sourceType === 'local' && (
-          <div className="mt-3">
-            <Input
-              id="source-path"
-              label=""
-              value={sourcePath}
-              onChange={(e) => setSourcePath(e.target.value)}
-              placeholder="/home/user/my-project"
-            />
+          <div className="mt-3 flex gap-2">
+            <div className="flex-1">
+              <Input
+                id="source-path"
+                label=""
+                value={sourcePath}
+                onChange={(e) => setSourcePath(e.target.value)}
+                placeholder="/home/user/my-project"
+              />
+            </div>
+            <Button
+              variant="secondary"
+              onClick={() => setBrowseOpen(true)}
+              className="shrink-0"
+            >
+              <FolderSearch className="h-4 w-4 mr-1.5" />
+              Browse
+            </Button>
           </div>
         )}
         {sourceType === 'git' && (
@@ -186,15 +198,16 @@ export function NewExecutionPage() {
         </div>
       </div>
 
-      {/* Target Input */}
+      {/* Focus Path */}
       <div>
         <Input
           id="target"
-          label="Target (optional)"
+          label="Focus Path (optional)"
           value={target}
           onChange={(e) => setTarget(e.target.value)}
           placeholder="e.g., src/auth/"
         />
+        <p className="text-xs text-gray-500 mt-1">Scope agents to specific files or directories</p>
       </div>
 
       {/* Start Button */}
@@ -216,6 +229,17 @@ export function NewExecutionPage() {
           This will start a {WORKFLOWS.find(w => w.type === selectedWorkflow)?.name} workflow
         </p>
       </div>
+
+      {browseOpen && (
+        <DirectoryBrowserModal
+          initialPath={sourcePath || undefined}
+          onSelect={(path) => {
+            setSourcePath(path);
+            setBrowseOpen(false);
+          }}
+          onClose={() => setBrowseOpen(false)}
+        />
+      )}
     </div>
   );
 }
