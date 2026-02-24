@@ -1,6 +1,10 @@
 """Application configuration."""
 
+import logging
 import os
+
+# Ensure orchestrator logs go to stdout (visible in Docker)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 
 class Settings:

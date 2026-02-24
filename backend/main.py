@@ -65,3 +65,20 @@ app.include_router(screenshots.router)
 async def health_check() -> dict:
     """Health-check endpoint."""
     return {"status": "ok"}
+
+
+@app.get("/api/debug/orchestrator")
+async def debug_orchestrator() -> dict:
+    """Debug endpoint — shows orchestrator availability info."""
+    import shutil
+    import os
+    from backend.services.orchestrator import _check_orchestrator_available
+
+    claude_path = shutil.which("claude")
+    return {
+        "claude_cli_found": claude_path is not None,
+        "claude_cli_path": claude_path,
+        "orchestrator_available": _check_orchestrator_available(),
+        "CLAUDECODE_env": os.environ.get("CLAUDECODE", "<not set>"),
+        "PATH": os.environ.get("PATH", ""),
+    }
