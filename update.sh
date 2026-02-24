@@ -14,8 +14,8 @@ git fetch origin master
 git reset --hard origin/master
 
 echo "==> Installing any new Python dependencies..."
-pip install --no-cache-dir -q -r requirements.txt 2>/dev/null || true
-pip install --no-cache-dir -q -r backend/requirements.txt 2>/dev/null || true
+pip install --no-cache-dir --user -q -r requirements.txt 2>/dev/null || true
+pip install --no-cache-dir --user -q -r backend/requirements.txt 2>/dev/null || true
 
 echo "==> Installing any new frontend dependencies..."
 cd /app/orchestra-dashboard
@@ -23,6 +23,7 @@ npm ci --silent 2>/dev/null || true
 
 echo "==> Restarting backend..."
 pkill -f 'python -m backend.run' 2>/dev/null || true
+sleep 1
 cd /app
 nohup python -m backend.run > /tmp/backend.log 2>&1 &
 
