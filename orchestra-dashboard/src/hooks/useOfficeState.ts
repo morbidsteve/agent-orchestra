@@ -12,8 +12,10 @@ import { fetchExecution } from '../lib/api.ts';
 const PHASE_AGENTS: Record<string, string> = {
   plan: 'developer',
   develop: 'developer',
+  'develop-2': 'developer-2',
   test: 'tester',
   security: 'devsecops',
+  'business-eval': 'business-dev',
   report: 'developer',
 };
 
@@ -83,6 +85,14 @@ export function useOfficeState(executionId: string | null): OfficeState {
           return [...prev, connection];
         });
         break;
+      case 'phase':
+        if ('phase' in msg && 'status' in msg) {
+          const phaseMsg = msg as { type: 'phase'; phase: string; status: string };
+          if (phaseMsg.status === 'running' && phaseMsg.phase) {
+            setCurrentPhase(phaseMsg.phase);
+          }
+        }
+        break;
       case 'execution-start':
         setCurrentPhase('plan');
         break;
@@ -108,7 +118,7 @@ export function useOfficeState(executionId: string | null): OfficeState {
         const initialConnections: AgentConnection[] = [];
 
         execution.pipeline.forEach((step, index) => {
-          const agentRole = PHASE_AGENTS[step.phase] || 'developer';
+          const agentRole = step.agentRole || PHASE_AGENTS[step.phase] || 'developer';
           const agentIdx = initialAgents.findIndex(a => a.role === agentRole);
 
           if (step.status === 'running') {
@@ -131,7 +141,7 @@ export function useOfficeState(executionId: string | null): OfficeState {
             // Add connection to next phase
             if (index < execution.pipeline.length - 1) {
               const nextStep = execution.pipeline[index + 1];
-              const nextAgent = PHASE_AGENTS[nextStep.phase] || 'developer';
+              const nextAgent = nextStep.agentRole || PHASE_AGENTS[nextStep.phase] || 'developer';
               initialConnections.push({
                 from: agentRole,
                 to: nextAgent,

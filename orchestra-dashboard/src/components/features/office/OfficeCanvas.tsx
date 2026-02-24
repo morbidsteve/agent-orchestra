@@ -40,8 +40,22 @@ export function OfficeCanvas({ officeState }: OfficeCanvasProps) {
   const { agents, connections, currentPhase, executionId } = officeState;
   const isActive = executionId !== null && currentPhase !== null;
 
-  // Show default idle connections when no WebSocket connections exist
-  const displayConnections = connections.length > 0 ? connections : DEFAULT_IDLE_CONNECTIONS;
+  // Derive orchestrator → working-agent connections from agent status
+  const orchestratorConnections: AgentConnection[] = agents
+    .filter(a => a.visualStatus === 'working')
+    .map(a => ({
+      from: 'orchestrator',
+      to: a.role,
+      label: '',
+      active: true,
+      dataFlow: 'broadcast' as const,
+    }));
+
+  // Show explicit + orchestrator connections when any exist, idle defaults otherwise
+  const hasActivity = connections.length > 0 || orchestratorConnections.length > 0;
+  const displayConnections = hasActivity
+    ? [...orchestratorConnections, ...connections]
+    : DEFAULT_IDLE_CONNECTIONS;
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-lg border border-surface-600 bg-surface-900">

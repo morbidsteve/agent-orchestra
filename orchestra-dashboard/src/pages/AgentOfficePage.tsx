@@ -14,7 +14,7 @@ export function AgentOfficePage() {
   const officeState = useOfficeState(executionId);
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex flex-col gap-4" style={{ height: 'calc(100vh - 3rem)' }}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
