@@ -220,10 +220,10 @@ async def run_dynamic_execution(execution_id: str) -> None:
         })
 
     except FileNotFoundError:
-        execution["status"] = "failed"
-        execution["completedAt"] = datetime.now(timezone.utc).isoformat()
-        await _broadcast_output(execution_id, "[Error: Claude CLI not found]", "orchestrator")
-        await store.broadcast(execution_id, {"type": "complete", "status": "failed"})
+        # Re-raise so the caller can fall back to the fixed pipeline
+        execution["status"] = "queued"
+        execution["startedAt"] = None
+        raise
     except Exception:
         execution["status"] = "failed"
         execution["completedAt"] = datetime.now(timezone.utc).isoformat()

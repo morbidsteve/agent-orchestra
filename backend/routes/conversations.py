@@ -206,8 +206,17 @@ async def _handle_user_message(
     async def _run_with_fallback(eid: str) -> None:
         try:
             await run_dynamic_execution(eid)
+        except FileNotFoundError:
+            # Claude CLI not available — fall back to the fixed pipeline
+            await run_execution(eid)
         except Exception:
-            # Fall back to the fixed pipeline if dynamic orchestrator fails to start
+            # Other dynamic orchestrator errors — also fall back
+            exc = store.executions.get(eid)
+            if exc and exc.get("status") == "failed":
+                # Reset so the fixed pipeline can run cleanly
+                exc["status"] = "queued"
+                exc["startedAt"] = None
+                exc["completedAt"] = None
             await run_execution(eid)
 
     asyncio.create_task(_run_with_fallback(exec_id))
