@@ -155,9 +155,14 @@ public/               # Static assets
 
 After all quality gates pass (tests, lint, tsc, no critical security findings), **automatically
 create a branch, commit, open a PR, and merge** — never wait for the user to ask. This is the
-mandatory final step of every completed feature or bug fix. Use `gh pr create` and
-`gh pr merge --merge`. **After merge, delete the branch** (remote and local) and return to
-`master`. If the merge fails, report the PR URL and error to the user.
+mandatory final step of every completed feature or bug fix.
+
+**Version bump (mandatory):** Before committing, increment the version in `package.json` —
+patch for fixes (e.g., `0.3.1` → `0.3.2`), minor for features (e.g., `0.3.2` → `0.4.0`).
+The version displays in the sidebar so the user can verify they're on the latest build.
+
+Use `gh pr create` and `gh pr merge --merge`. **After merge, delete the branch** (remote and
+local) and return to `master`. If the merge fails, report the PR URL and error to the user.
 
 ## Common Commands
 
