@@ -428,9 +428,9 @@ async def submit_claude_auth_code(code: str) -> dict:
         return {"status": "error", "error": "Login process is not running"}
 
     try:
-        # Write the code followed by a newline to the process stdin
         process.stdin.write(f"{code}\n".encode())
         await process.stdin.drain()
+        process.stdin.close()
         return {"status": "submitted"}
     except Exception as e:
         logger.exception("Failed to submit auth code")
