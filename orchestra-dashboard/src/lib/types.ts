@@ -338,6 +338,17 @@ export interface WsExecutionStartMessage {
   executionId: string;
 }
 
+export interface WsOutputMessage {
+  type: 'output';
+  line: string;
+  phase: string;
+}
+
+export interface WsCompleteMessage {
+  type: 'complete';
+  status: string;
+}
+
 export type WsConsoleMessage =
   | WsConsoleTextMessage
   | WsClarificationMessage
@@ -345,4 +356,6 @@ export type WsConsoleMessage =
   | WsAgentConnectionMessage
   | WsScreenshotMessage
   | WsBusinessEvalMessage
-  | WsExecutionStartMessage;
+  | WsExecutionStartMessage
+  | WsOutputMessage
+  | WsCompleteMessage;

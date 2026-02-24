@@ -14,6 +14,15 @@ export function useExecutions() {
     [executions],
   );
 
+  /** Most relevant execution: prefer active (running/queued), fall back to most recent. */
+  const latest = useMemo(() => {
+    const running = executions.filter(e => e.status === 'running' || e.status === 'queued');
+    if (running.length > 0) return running[0];
+    // Fall back to most recent execution (already sorted by createdAt desc)
+    if (executions.length > 0) return executions[0];
+    return null;
+  }, [executions]);
+
   const stats = useMemo(() => ({
     total: executions.length,
     running: executions.filter(e => e.status === 'running').length,
@@ -22,5 +31,5 @@ export function useExecutions() {
     queued: executions.filter(e => e.status === 'queued').length,
   }), [executions]);
 
-  return { executions, active, completed, stats };
+  return { executions, active, completed, latest, stats };
 }

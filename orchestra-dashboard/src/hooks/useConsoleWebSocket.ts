@@ -4,6 +4,8 @@ import type {
   Screenshot,
 } from '../lib/types.ts';
 
+export type ExecutionWsStatus = 'running' | 'completed' | 'failed' | null;
+
 export interface UseConsoleWebSocketReturn {
   messages: WsConsoleMessage[];
   connected: boolean;
@@ -11,6 +13,7 @@ export interface UseConsoleWebSocketReturn {
   agentStatuses: Record<string, { visualStatus: string; currentTask: string }>;
   screenshots: Screenshot[];
   businessEval: Record<string, unknown> | null;
+  executionStatus: ExecutionWsStatus;
 }
 
 export function useConsoleWebSocket(conversationId: string | null): UseConsoleWebSocketReturn {
@@ -20,15 +23,28 @@ export function useConsoleWebSocket(conversationId: string | null): UseConsoleWe
   const [agentStatuses, setAgentStatuses] = useState<Record<string, { visualStatus: string; currentTask: string }>>({});
   const [screenshots, setScreenshots] = useState<Screenshot[]>([]);
   const [businessEval, setBusinessEval] = useState<Record<string, unknown> | null>(null);
+  const [executionStatus, setExecutionStatus] = useState<ExecutionWsStatus>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const handleMessage = useCallback((msg: WsConsoleMessage) => {
-    setMessages(prev => [...prev, msg]);
-
     switch (msg.type) {
+      case 'output':
+        // Backend sends { type: 'output', line: string, phase: string }
+        // Convert to console-text so downstream consumers see a unified type
+        setMessages(prev => [...prev, {
+          type: 'console-text' as const,
+          text: msg.line,
+          messageId: `output-${Date.now()}-${Math.random()}`,
+        }]);
+        break;
+      case 'complete':
+        setExecutionStatus(msg.status === 'completed' ? 'completed' : 'failed');
+        setMessages(prev => [...prev, msg]);
+        break;
       case 'agent-status':
+        setMessages(prev => [...prev, msg]);
         setAgentStatuses(prev => ({
           ...prev,
           [msg.agentRole]: {
@@ -38,15 +54,20 @@ export function useConsoleWebSocket(conversationId: string | null): UseConsoleWe
         }));
         break;
       case 'screenshot':
+        setMessages(prev => [...prev, msg]);
         setScreenshots(prev => [...prev, msg.screenshot]);
         break;
       case 'business-eval':
+        setMessages(prev => [...prev, msg]);
         setBusinessEval({ section: msg.section, status: msg.status, data: msg.data });
         break;
       case 'execution-start':
+        setMessages(prev => [...prev, msg]);
         setCurrentPhase('plan');
+        setExecutionStatus('running');
         break;
       default:
+        setMessages(prev => [...prev, msg]);
         break;
     }
   }, []);
@@ -92,6 +113,7 @@ export function useConsoleWebSocket(conversationId: string | null): UseConsoleWe
       setAgentStatuses({});
       setScreenshots([]);
       setBusinessEval(null);
+      setExecutionStatus(null);
     };
   }, [conversationId, handleMessage]);
 
@@ -102,5 +124,6 @@ export function useConsoleWebSocket(conversationId: string | null): UseConsoleWe
     agentStatuses,
     screenshots,
     businessEval,
+    executionStatus,
   };
 }

@@ -5,12 +5,11 @@ import { OfficeStatusBar } from '../components/features/office/OfficeStatusBar.t
 import { useExecutions } from '../hooks/useExecutions.ts';
 
 export function AgentOfficePage() {
-  const { active } = useExecutions();
+  const { latest } = useExecutions();
 
-  // Connect to the most recent running execution, if any
-  const latestExecution = active.length > 0 ? active[0] : null;
-  const executionId = latestExecution?.id ?? null;
-  const startedAt = latestExecution?.startedAt ?? null;
+  // Show the most relevant execution: active if any, otherwise most recent
+  const executionId = latest?.id ?? null;
+  const startedAt = latest?.startedAt ?? null;
 
   const officeState = useOfficeState(executionId);
 
