@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import fcntl
 import json
 import logging
 import os
+import pty
 import re
 import shutil
 
@@ -85,7 +87,7 @@ async def _get_claude_status() -> dict:
 
 
 async def start_github_login() -> dict:
-    """Spawn `gh auth login --web` and extract the device code."""
+    """Spawn `gh auth login --web` in a PTY and extract the device code."""
     global _login_session
 
     if _login_session and _login_session.get("status") == "pending":
@@ -100,90 +102,64 @@ async def start_github_login() -> dict:
     if not shutil.which("gh"):
         raise RuntimeError("gh CLI not installed")
 
+    # Use a PTY so the CLI outputs its device code properly.
+    master_fd, slave_fd = pty.openpty()
+    flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
+    fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
     process = await asyncio.create_subprocess_exec(
         "gh", "auth", "login", "--web", "-h", "github.com",
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        stdin=slave_fd,
+        stdout=slave_fd,
+        stderr=slave_fd,
     )
+
+    os.close(slave_fd)
 
     _login_session = {
         "process": process,
+        "master_fd": master_fd,
         "status": "pending",
         "deviceCode": None,
         "verificationUrl": "https://github.com/login/device",
     }
 
-    # gh may output the device code to stdout OR stderr depending on TTY.
-    # Read from both concurrently.
     device_code: str | None = None
     verification_url = "https://github.com/login/device"
+    loop = asyncio.get_event_loop()
+    buf = ""
 
-    async def _scan_for_code(
-        stream: asyncio.StreamReader | None,
-    ) -> tuple[str | None, str | None]:
-        """Read lines from a stream looking for the device code and URL."""
-        if stream is None:
-            return None, None
-        code: str | None = None
-        url: str | None = None
+    async def _read_chunk() -> str:
         try:
-            while True:
-                line_bytes = await asyncio.wait_for(stream.readline(), timeout=10)
-                if not line_bytes:
-                    break
-                line = line_bytes.decode("utf-8", errors="replace")
-                # Match: "one-time code: XXXX-XXXX" or "First copy your one-time code: XXXX-XXXX"
-                code_match = re.search(
-                    r"code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})", line, re.IGNORECASE
-                )
-                if code_match:
-                    code = code_match.group(1)
-                url_match = re.search(
-                    r"(https://github\.com/login/device\S*)", line
-                )
-                if url_match:
-                    url = url_match.group(1)
-                if code:
-                    break
-        except asyncio.TimeoutError:
-            pass
-        return code, url
+            data = await asyncio.wait_for(
+                loop.run_in_executor(None, os.read, master_fd, 4096),
+                timeout=3,
+            )
+            return data.decode("utf-8", errors="replace")
+        except (asyncio.TimeoutError, OSError):
+            return ""
 
     try:
-        stdout_task = asyncio.create_task(_scan_for_code(process.stdout))
-        stderr_task = asyncio.create_task(_scan_for_code(process.stderr))
-
-        done, pending = await asyncio.wait(
-            [stdout_task, stderr_task],
-            timeout=15,
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-
-        for task in done:
-            code, url = task.result()
-            if code:
-                device_code = code
-            if url:
-                verification_url = url
-
-        # If we didn't find it in the first stream, check the other
-        if not device_code:
-            for task in pending:
-                try:
-                    code, url = await asyncio.wait_for(task, timeout=5)
-                    if code:
-                        device_code = code
-                    if url:
-                        verification_url = url
-                except asyncio.TimeoutError:
-                    task.cancel()
-
-        # Cancel any remaining pending tasks
-        for task in pending:
-            if not task.done():
-                task.cancel()
-
+        deadline = loop.time() + 15
+        while loop.time() < deadline:
+            chunk = await _read_chunk()
+            if chunk:
+                buf += chunk
+                logger.debug("gh auth login pty: %s", chunk.rstrip())
+                code_match = re.search(
+                    r"code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})", buf, re.IGNORECASE,
+                )
+                if code_match:
+                    device_code = code_match.group(1)
+                url_match = re.search(
+                    r"(https://github\.com/login/device\S*)", buf,
+                )
+                if url_match:
+                    verification_url = url_match.group(1)
+                if device_code:
+                    break
+            else:
+                await asyncio.sleep(0.2)
     except Exception:
         _login_session["status"] = "error"
         _login_session["error"] = "Failed to read device code"
@@ -191,7 +167,7 @@ async def start_github_login() -> dict:
     if device_code:
         _login_session["deviceCode"] = device_code
         _login_session["verificationUrl"] = verification_url
-        asyncio.create_task(_monitor_login_process(process))
+        asyncio.create_task(_monitor_github_login_pty(process, master_fd))
         return {
             "deviceCode": device_code,
             "verificationUrl": verification_url,
@@ -200,24 +176,39 @@ async def start_github_login() -> dict:
     else:
         _login_session["status"] = "error"
         _login_session["error"] = "Could not extract device code"
-        # Clean up the leaked process
         try:
             process.kill()
         except ProcessLookupError:
             pass
+        os.close(master_fd)
         return {"deviceCode": None, "verificationUrl": None, "status": "error"}
 
 
-async def _monitor_login_process(process: asyncio.subprocess.Process) -> None:
-    """Background task: wait for gh login process to complete."""
+async def _monitor_github_login_pty(
+    process: asyncio.subprocess.Process,
+    master_fd: int,
+) -> None:
+    """Background: drain the PTY and wait for gh login to complete."""
     global _login_session
-    try:
-        # Do NOT send \\n to stdin — we are headless; the user authenticates
-        # via the device code in their browser.
-        await asyncio.wait_for(process.wait(), timeout=300)  # 5 min timeout
+    loop = asyncio.get_event_loop()
 
+    async def _drain() -> None:
+        while True:
+            try:
+                await asyncio.wait_for(
+                    loop.run_in_executor(None, os.read, master_fd, 4096),
+                    timeout=2,
+                )
+            except (asyncio.TimeoutError, OSError):
+                if process.returncode is not None:
+                    break
+                await asyncio.sleep(0.5)
+
+    drain_task = asyncio.create_task(_drain())
+
+    try:
+        await asyncio.wait_for(process.wait(), timeout=300)
         if process.returncode == 0:
-            # Login succeeded — get username
             status = await _get_github_status()
             if _login_session:
                 _login_session["status"] = "authenticated"
@@ -234,10 +225,12 @@ async def _monitor_login_process(process: asyncio.subprocess.Process) -> None:
             process.kill()
         except ProcessLookupError:
             pass
-    except Exception:
-        if _login_session:
-            _login_session["status"] = "error"
-            _login_session["error"] = "Unexpected error during login"
+    finally:
+        drain_task.cancel()
+        try:
+            os.close(master_fd)
+        except OSError:
+            pass
 
 
 def get_login_session_status() -> dict:
@@ -278,7 +271,12 @@ async def github_logout() -> dict:
 
 
 async def start_claude_login() -> dict:
-    """Spawn `claude auth login` and extract the auth URL."""
+    """Spawn `claude auth login` in a PTY and extract the auth URL.
+
+    Uses a pseudo-terminal because the Claude CLI reads interactive input
+    from /dev/tty, not stdin.  A plain pipe would never deliver the auth
+    code to the process.
+    """
     global _claude_login_session
 
     if _claude_login_session and _claude_login_session.get("status") == "pending":
@@ -296,121 +294,104 @@ async def start_claude_login() -> dict:
         _claude_login_session = {"status": "authenticated"}
         return {"authUrl": None, "status": "already_authenticated"}
 
-    # Set BROWSER=echo so the CLI prints the auth URL instead of trying
-    # to open a browser (which fails in headless Docker environments).
+    # Create a pseudo-terminal so the CLI thinks it has a real terminal.
+    master_fd, slave_fd = pty.openpty()
+
+    # Make the master non-blocking so async reads don't stall the event loop.
+    flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
+    fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
     env = {**os.environ, "BROWSER": "echo"}
 
     process = await asyncio.create_subprocess_exec(
         "claude", "auth", "login",
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        stdin=slave_fd,
+        stdout=slave_fd,
+        stderr=slave_fd,
         env=env,
     )
 
+    # Close the slave end in the parent — only the child uses it.
+    os.close(slave_fd)
+
     _claude_login_session = {
         "process": process,
+        "master_fd": master_fd,
         "status": "pending",
         "authUrl": None,
     }
 
-    # Scan both streams for the auth URL, returning the instant it's found.
+    # Read PTY output until we find an HTTPS URL.
+    loop = asyncio.get_event_loop()
     auth_url: str | None = None
+    buf = ""
 
-    async def _scan_for_url(
-        stream: asyncio.StreamReader | None, name: str,
-    ) -> str | None:
-        """Read lines and return the first HTTPS URL found."""
-        if stream is None:
-            return None
+    async def _read_chunk() -> str:
+        """Read available bytes from the PTY master (non-blocking)."""
         try:
-            while True:
-                line_bytes = await asyncio.wait_for(stream.readline(), timeout=3)
-                if not line_bytes:
-                    break
-                line = line_bytes.decode("utf-8", errors="replace")
-                logger.debug("claude auth login %s: %s", name, line.rstrip())
-                url_match = re.search(r"(https://\S+)", line)
-                if url_match:
-                    return url_match.group(1)
-        except asyncio.TimeoutError:
-            pass
-        return None
+            data = await asyncio.wait_for(
+                loop.run_in_executor(None, os.read, master_fd, 4096),
+                timeout=3,
+            )
+            return data.decode("utf-8", errors="replace")
+        except (asyncio.TimeoutError, OSError):
+            return ""
 
     try:
-        stdout_task = asyncio.create_task(_scan_for_url(process.stdout, "stdout"))
-        stderr_task = asyncio.create_task(_scan_for_url(process.stderr, "stderr"))
-
-        done, pending = await asyncio.wait(
-            [stdout_task, stderr_task],
-            timeout=8,
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-
-        for task in done:
-            result = task.result()
-            if result:
-                auth_url = result
-                break
-
-        # If first stream didn't have the URL, check the other
-        if not auth_url:
-            for task in pending:
-                try:
-                    result = await asyncio.wait_for(task, timeout=3)
-                    if result:
-                        auth_url = result
-                except asyncio.TimeoutError:
-                    task.cancel()
-
-        for task in pending:
-            if not task.done():
-                task.cancel()
-
+        deadline = asyncio.get_event_loop().time() + 10
+        while asyncio.get_event_loop().time() < deadline:
+            chunk = await _read_chunk()
+            if chunk:
+                buf += chunk
+                logger.debug("claude auth login pty: %s", chunk.rstrip())
+                url_match = re.search(r"(https://\S+)", buf)
+                if url_match:
+                    auth_url = url_match.group(1)
+                    break
+            else:
+                await asyncio.sleep(0.2)
     except Exception:
         logger.exception("Error reading claude auth login output")
-        _claude_login_session["status"] = "error"
-        _claude_login_session["error"] = "Timed out waiting for auth URL"
 
     if auth_url:
         _claude_login_session["authUrl"] = auth_url
-        asyncio.create_task(_monitor_claude_login(process))
+        asyncio.create_task(_monitor_claude_login_pty(process, master_fd))
         return {"authUrl": auth_url, "status": "pending"}
     else:
         _claude_login_session["status"] = "error"
         _claude_login_session["error"] = "Could not extract auth URL"
-        # Clean up the leaked process
         try:
             process.kill()
         except ProcessLookupError:
             pass
+        os.close(master_fd)
         return {"authUrl": None, "status": "error"}
 
 
-async def _drain_stream(stream: asyncio.StreamReader | None) -> None:
-    """Read and discard all output from a stream to prevent pipe deadlocks."""
-    if stream is None:
-        return
-    try:
-        while True:
-            chunk = await asyncio.wait_for(stream.read(4096), timeout=1)
-            if not chunk:
-                break
-    except (asyncio.TimeoutError, Exception):
-        pass
-
-
-async def _monitor_claude_login(process: asyncio.subprocess.Process) -> None:
-    """Wait for claude auth login process to complete.
-
-    Also drains stdout/stderr so the process doesn't deadlock on pipe writes.
-    """
+async def _monitor_claude_login_pty(
+    process: asyncio.subprocess.Process,
+    master_fd: int,
+) -> None:
+    """Background: drain the PTY and wait for the process to exit."""
     global _claude_login_session
+    loop = asyncio.get_event_loop()
 
-    # Keep draining stdout/stderr so the process doesn't block if it
-    # outputs prompts (e.g., "Enter code:") after the auth URL.
-    drain_out = asyncio.create_task(_drain_stream(process.stdout))
-    drain_err = asyncio.create_task(_drain_stream(process.stderr))
+    async def _drain_pty() -> None:
+        """Keep reading from the PTY so the process never blocks on writes."""
+        while True:
+            try:
+                data = await asyncio.wait_for(
+                    loop.run_in_executor(None, os.read, master_fd, 4096),
+                    timeout=2,
+                )
+                if data:
+                    logger.debug("claude pty drain: %s", data.decode("utf-8", errors="replace").rstrip())
+            except (asyncio.TimeoutError, OSError):
+                if process.returncode is not None:
+                    break
+                await asyncio.sleep(0.5)
+
+    drain_task = asyncio.create_task(_drain_pty())
 
     try:
         await asyncio.wait_for(process.wait(), timeout=300)
@@ -430,24 +411,27 @@ async def _monitor_claude_login(process: asyncio.subprocess.Process) -> None:
         except ProcessLookupError:
             pass
     finally:
-        drain_out.cancel()
-        drain_err.cancel()
+        drain_task.cancel()
+        try:
+            os.close(master_fd)
+        except OSError:
+            pass
 
 
 async def submit_claude_auth_code(code: str) -> dict:
-    """Write the user-provided auth code to the claude login process stdin."""
+    """Write the auth code to the PTY so the Claude CLI receives it."""
     global _claude_login_session
 
     if not _claude_login_session:
         return {"status": "error", "error": "No active login session"}
 
+    master_fd = _claude_login_session.get("master_fd")
     process = _claude_login_session.get("process")
-    if not process or process.returncode is not None:
+    if not master_fd or not process or process.returncode is not None:
         return {"status": "error", "error": "Login process is not running"}
 
     try:
-        process.stdin.write(f"{code}\n".encode())
-        await process.stdin.drain()
+        os.write(master_fd, f"{code}\n".encode())
         return {"status": "submitted"}
     except Exception as e:
         logger.exception("Failed to submit auth code")
