@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bot, ExternalLink, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '../../../lib/cn.ts';
 import type { AuthStatus, ClaudeLoginStatus } from '../../../lib/types.ts';
@@ -17,10 +17,22 @@ export interface ClaudeAuthCardProps {
 function CodeInput({ onSubmit }: { onSubmit: (code: string) => void }) {
   const [code, setCode] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [retryMessage, setRetryMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!submitted) return;
+    const timer = setTimeout(() => {
+      setSubmitted(false);
+      setCode('');
+      setRetryMessage('Code verification timed out. Please try again.');
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [submitted]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (code.trim()) {
+      setRetryMessage(null);
       onSubmit(code.trim());
       setSubmitted(true);
     }
@@ -40,6 +52,12 @@ function CodeInput({ onSubmit }: { onSubmit: (code: string) => void }) {
       <label htmlFor="claude-auth-code" className="block text-sm text-gray-300">
         Paste the code from the authorization page:
       </label>
+      {retryMessage && (
+        <div className="flex items-center gap-2 text-sm text-amber-400">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {retryMessage}
+        </div>
+      )}
       <div className="flex gap-2">
         <input
           id="claude-auth-code"
