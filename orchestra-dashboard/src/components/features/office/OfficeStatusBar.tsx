@@ -7,7 +7,23 @@ interface OfficeStatusBarProps {
   startedAt: string | null;
 }
 
-const PHASES = ['plan', 'develop', 'test', 'security', 'report'];
+// Phase groups: each inner array is a parallel group
+const PHASE_GROUPS = [
+  [{ id: 'plan', label: 'Plan' }],
+  [{ id: 'develop', label: 'Dev' }, { id: 'develop-2', label: 'Dev\u2082' }],
+  [{ id: 'test', label: 'Test' }, { id: 'security', label: 'Sec' }],
+  [{ id: 'report', label: 'Report' }],
+];
+
+const AGENT_COLORS: Record<string, string> = {
+  plan: '#3b82f6',
+  develop: '#3b82f6',
+  'develop-2': '#06b6d4',
+  test: '#22c55e',
+  security: '#f97316',
+  'business-eval': '#a855f7',
+  report: '#a855f7',
+};
 
 function formatElapsedTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -42,11 +58,11 @@ export function OfficeStatusBar({ executionId, currentPhase, startedAt }: Office
     return () => clearInterval(interval);
   }, [startedAt]);
 
-  const currentPhaseIndex = currentPhase ? PHASES.indexOf(currentPhase) : -1;
+  // Find which group the current phase belongs to
+  const currentGroupIndex = currentPhase
+    ? PHASE_GROUPS.findIndex(group => group.some(p => p.id === currentPhase))
+    : -1;
   const isIdle = !executionId;
-
-  /** Colors corresponding to each pipeline phase for idle display */
-  const PHASE_IDLE_COLORS = ['#3b82f6', '#06b6d4', '#22c55e', '#f97316', '#a855f7'];
 
   return (
     <div className="flex items-center gap-4 rounded-lg border border-surface-600 bg-surface-800 px-4 py-2">
@@ -75,24 +91,34 @@ export function OfficeStatusBar({ executionId, currentPhase, startedAt }: Office
         </span>
       )}
 
-      {/* Phase progress dots */}
-      <div className="flex items-center gap-1.5">
-        {PHASES.map((phase, index) => (
-          <div
-            key={phase}
-            className={cn(
-              'h-2 w-2 rounded-full transition-colors duration-300',
-              index < currentPhaseIndex && 'bg-green-400',
-              index === currentPhaseIndex && 'bg-blue-400 animate-pulse',
-              index > currentPhaseIndex && !isIdle && 'bg-surface-600',
-            )}
-            style={
-              isIdle && currentPhaseIndex === -1
-                ? { backgroundColor: PHASE_IDLE_COLORS[index], opacity: 0.25 }
-                : undefined
-            }
-            title={phase}
-          />
+      {/* Phase group progress */}
+      <div className="flex items-center gap-1">
+        {PHASE_GROUPS.map((group, gIdx) => (
+          <div key={gIdx} className="flex items-center gap-0.5">
+            {gIdx > 0 && <div className="mx-0.5 h-px w-2 bg-surface-600" />}
+            {group.map((phase) => {
+              const isDone = gIdx < currentGroupIndex;
+              const isCurrent = gIdx === currentGroupIndex;
+              const isFuture = gIdx > currentGroupIndex && currentGroupIndex >= 0;
+              return (
+                <div
+                  key={phase.id}
+                  className={cn(
+                    'h-2 w-2 rounded-full transition-colors duration-300',
+                    isDone && 'bg-green-400',
+                    isCurrent && 'bg-blue-400 animate-pulse',
+                    isFuture && 'bg-surface-600',
+                  )}
+                  style={
+                    isIdle && currentGroupIndex === -1
+                      ? { backgroundColor: AGENT_COLORS[phase.id] ?? '#6b7280', opacity: 0.25 }
+                      : undefined
+                  }
+                  title={phase.label}
+                />
+              );
+            })}
+          </div>
         ))}
       </div>
 

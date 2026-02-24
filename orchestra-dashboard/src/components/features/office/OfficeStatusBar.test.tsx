@@ -22,18 +22,19 @@ describe('OfficeStatusBar', () => {
     }
   });
 
-  it('renders all five phase progress dots when idle with dim styling', () => {
+  it('renders phase progress dots for all pipeline phases when idle', () => {
     const { container } = render(
       <OfficeStatusBar executionId={null} currentPhase={null} startedAt={null} />,
     );
-    // Each phase gets a dot with a title attribute
+    // Each phase gets a dot with a title attribute (6 phases: plan, dev, dev2, test, sec, report)
     const dots = container.querySelectorAll('[title]');
-    expect(dots).toHaveLength(5);
-    expect(dots[0]).toHaveAttribute('title', 'plan');
-    expect(dots[1]).toHaveAttribute('title', 'develop');
-    expect(dots[2]).toHaveAttribute('title', 'test');
-    expect(dots[3]).toHaveAttribute('title', 'security');
-    expect(dots[4]).toHaveAttribute('title', 'report');
+    expect(dots).toHaveLength(6);
+    expect(dots[0]).toHaveAttribute('title', 'Plan');
+    expect(dots[1]).toHaveAttribute('title', 'Dev');
+    expect(dots[2]).toHaveAttribute('title', 'Dev\u2082');
+    expect(dots[3]).toHaveAttribute('title', 'Test');
+    expect(dots[4]).toHaveAttribute('title', 'Sec');
+    expect(dots[5]).toHaveAttribute('title', 'Report');
   });
 
   it('displays the execution id when one is active', () => {

@@ -287,6 +287,16 @@ async def _run_phase(execution_id: str, step: dict[str, Any]) -> None:
         "currentTask": f"Executing {phase} phase",
     })
 
+    # Broadcast orchestrator → agent connection (for office visualization)
+    await broadcast_both(execution_id, {
+        "type": "agent-connection",
+        "from": "orchestrator",
+        "to": agent_role,
+        "label": f"Delegating {phase}",
+        "active": True,
+        "dataFlow": "broadcast",
+    })
+
     # Create an activity record
     activity_id = f"act-{uuid.uuid4().hex[:8]}"
     execution = store.executions[execution_id]
@@ -356,6 +366,16 @@ async def _run_phase(execution_id: str, step: dict[str, Any]) -> None:
                 "active": True,
                 "dataFlow": "handoff",
             })
+
+        # Deactivate orchestrator → agent connection
+        await broadcast_both(execution_id, {
+            "type": "agent-connection",
+            "from": "orchestrator",
+            "to": agent_role,
+            "label": "",
+            "active": False,
+            "dataFlow": "broadcast",
+        })
 
         # Broadcast agent-status: done
         await broadcast_both(execution_id, {
