@@ -92,7 +92,9 @@ the final step of every successful pipeline. The workflow is:
 2. Stage and commit all changed files with a clear commit message
 3. Push the branch and open a PR via `gh pr create` with a summary + test plan
 4. Merge the PR via `gh pr merge --merge` (use merge commit, not squash or rebase)
-5. Report the merged PR URL to the user
+5. **Delete the branch** after merge — both remote (`gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/{branch}`) and local (`git branch -d {branch}`)
+6. `git checkout master && git pull` to return to a clean state
+7. Report the merged PR URL to the user
 
 If the merge fails (e.g., branch protection, merge conflicts), report the PR URL and the
 error — do not silently retry or force-push.
