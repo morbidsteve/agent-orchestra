@@ -1,7 +1,6 @@
-import { Activity, Users } from 'lucide-react';
 import { cn } from '../../../lib/cn.ts';
 
-interface OrchestratorDeskProps {
+interface CommandCenterProps {
   currentPhase: string | null;
   agentCount: number;
   isActive: boolean;
@@ -16,7 +15,9 @@ function getStatusText(currentPhase: string | null, agentCount: number, isActive
   return currentPhase ? `Phase: ${currentPhase}` : 'Ready';
 }
 
-export function OrchestratorDesk({ currentPhase, agentCount, isActive, executionId }: OrchestratorDeskProps) {
+export function CommandCenter({ currentPhase, agentCount, isActive, executionId }: CommandCenterProps) {
+  const statusText = getStatusText(currentPhase, agentCount, isActive);
+
   return (
     <div
       className="absolute"
@@ -26,66 +27,106 @@ export function OrchestratorDesk({ currentPhase, agentCount, isActive, execution
         transform: 'translate(-50%, -50%)',
       }}
     >
+      {/* Outer glow ring (active only) */}
+      {isActive && (
+        <div
+          className="absolute inset-0 rounded-2xl"
+          style={{
+            margin: '-8px',
+            background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, rgba(139,92,246,0.06) 50%, transparent 70%)',
+            animation: 'commandPulse 3s ease-in-out infinite',
+          }}
+        />
+      )}
+
       <div
         className={cn(
-          'flex flex-col items-center gap-2 rounded-xl border-2 px-6 py-4 transition-all duration-300',
-          'bg-gradient-to-br from-blue-500/5 to-purple-500/5',
-          isActive
-            ? 'border-blue-500/50'
-            : 'border-surface-600',
+          'relative flex flex-col items-center gap-1.5 rounded-2xl px-8 py-5 transition-all duration-300',
         )}
         style={{
+          backgroundColor: '#1e2028',
+          border: `2px solid ${isActive ? 'rgba(99,102,241,0.4)' : '#333842'}`,
           boxShadow: isActive
-            ? '0 0 20px rgba(59, 130, 246, 0.15), 0 0 40px rgba(168, 85, 247, 0.08)'
-            : undefined,
+            ? '0 0 24px rgba(99,102,241,0.12), 0 0 48px rgba(139,92,246,0.06), 0 4px 16px rgba(0,0,0,0.4)'
+            : '0 4px 16px rgba(0,0,0,0.3)',
+          minWidth: '140px',
         }}
       >
-        {/* Active spinning ring */}
-        {isActive && (
-          <style>{`
-            @keyframes orchSpin {
-              to { transform: rotate(360deg); }
-            }
-          `}</style>
-        )}
+        {/* Embedded screen indicators around the edge */}
+        <div className="absolute -top-1 left-1/2 -translate-x-1/2 flex gap-3">
+          {[0, 1, 2].map(i => (
+            <span
+              key={i}
+              className={cn('h-1.5 w-3 rounded-full transition-colors duration-500')}
+              style={{
+                backgroundColor: isActive ? 'rgba(99,102,241,0.6)' : '#333842',
+              }}
+            />
+          ))}
+        </div>
+        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex gap-3">
+          {[0, 1, 2].map(i => (
+            <span
+              key={i}
+              className={cn('h-1.5 w-3 rounded-full transition-colors duration-500')}
+              style={{
+                backgroundColor: isActive ? 'rgba(139,92,246,0.5)' : '#333842',
+              }}
+            />
+          ))}
+        </div>
 
-        {/* Icon + title row */}
+        {/* Center diamond icon */}
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <Activity className={cn(
-              'h-6 w-6 transition-colors duration-300',
-              isActive ? 'text-blue-400' : 'text-gray-500',
-            )} />
-            {isActive && (
-              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+          <span
+            className={cn(
+              'inline-block h-3 w-3 rotate-45 rounded-sm transition-colors duration-300',
+              isActive ? 'bg-indigo-400' : 'bg-gray-600',
             )}
-          </div>
+          />
           <span className="text-sm font-semibold text-gray-200">Orchestrator</span>
+          <span
+            className={cn(
+              'inline-block h-3 w-3 rotate-45 rounded-sm transition-colors duration-300',
+              isActive ? 'bg-violet-400' : 'bg-gray-600',
+            )}
+          />
         </div>
 
         {/* Status text */}
         <span className={cn(
           'text-xs',
-          isActive ? 'text-blue-300' : 'text-gray-500',
+          isActive ? 'text-indigo-300' : 'text-gray-500',
         )}>
-          {getStatusText(currentPhase, agentCount, isActive)}
+          {statusText}
         </span>
 
-        {/* Agent count badge */}
+        {/* Agent count */}
         {agentCount > 0 && (
-          <div className="flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5">
-            <Users className="h-3 w-3 text-blue-400" />
-            <span className="text-[10px] font-medium text-blue-400">{agentCount}</span>
+          <div className="flex items-center gap-1 rounded-full px-2 py-0.5"
+            style={{
+              backgroundColor: 'rgba(99,102,241,0.1)',
+            }}
+          >
+            <span className="text-[10px] font-medium text-indigo-400">{agentCount} agents</span>
           </div>
         )}
 
         {/* Execution ID */}
         {executionId && (
-          <span className="text-[10px] text-gray-500 max-w-28 truncate">
+          <span className="text-[10px] text-gray-600 max-w-28 truncate">
             {executionId.slice(0, 12)}
           </span>
         )}
       </div>
+
+      {/* CSS animations */}
+      <style>{`
+        @keyframes commandPulse {
+          0%, 100% { opacity: 0.6; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.04); }
+        }
+      `}</style>
     </div>
   );
 }
