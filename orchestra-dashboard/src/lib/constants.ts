@@ -72,7 +72,7 @@ export const WORKFLOWS: Workflow[] = [
   {
     type: 'full-pipeline',
     name: 'Full Pipeline',
-    description: 'Complete development workflow: Plan -> Develop -> Test -> Security -> Report',
+    description: 'Parallel pipeline: Plan \u2192 [Develop + Develop\u2082] \u2192 [Test + Security] \u2192 Report',
     phases: ['plan', 'develop', 'test', 'security', 'report'],
     icon: 'GitBranch',
     estimatedDuration: '15-30 min',
@@ -80,7 +80,7 @@ export const WORKFLOWS: Workflow[] = [
   {
     type: 'code-review',
     name: 'Code Review',
-    description: 'Parallel review by developer, tester, and security agents',
+    description: 'Parallel review: [Develop + Test + Security] \u2192 Report',
     phases: ['plan', 'develop', 'test', 'security', 'report'],
     icon: 'FileSearch',
     estimatedDuration: '5-10 min',
@@ -96,7 +96,7 @@ export const WORKFLOWS: Workflow[] = [
   {
     type: 'feature-eval',
     name: 'Feature Evaluation',
-    description: 'Market analysis and technical feasibility assessment',
+    description: 'Parallel eval: Plan \u2192 [Develop + Biz Eval] \u2192 Report',
     phases: ['plan', 'develop', 'report'],
     icon: 'Lightbulb',
     estimatedDuration: '10-20 min',
@@ -104,7 +104,7 @@ export const WORKFLOWS: Workflow[] = [
   {
     type: 'quick-fix',
     name: 'Quick Fix',
-    description: 'Fast bug fix with targeted testing',
+    description: 'Quick fix: Develop \u2192 [Test + Security] \u2192 Report',
     phases: ['develop', 'test', 'report'],
     icon: 'Zap',
     estimatedDuration: '5-10 min',
@@ -122,8 +122,10 @@ export const SEVERITY_CONFIG: Record<string, { label: string; color: string; bg:
 export const PHASE_LABELS: Record<string, string> = {
   plan: 'Plan',
   develop: 'Develop',
+  'develop-2': 'Develop (2)',
   test: 'Test',
   security: 'Security',
+  'business-eval': 'Biz Eval',
   report: 'Report',
 };
 
