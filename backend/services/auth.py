@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import os
 import re
 import shutil
+
+logger = logging.getLogger(__name__)
 
 # Module-level login session state (follows orchestrator.py pattern)
 _login_session: dict | None = None
@@ -292,11 +296,16 @@ async def start_claude_login() -> dict:
         _claude_login_session = {"status": "authenticated"}
         return {"authUrl": None, "status": "already_authenticated"}
 
+    # Set BROWSER=echo so the CLI prints the auth URL instead of trying
+    # to open a browser (which fails in headless Docker environments).
+    env = {**os.environ, "BROWSER": "echo"}
+
     process = await asyncio.create_subprocess_exec(
         "claude", "auth", "login",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=env,
     )
 
     _claude_login_session = {
@@ -335,8 +344,10 @@ async def start_claude_login() -> dict:
             return_when=asyncio.FIRST_COMPLETED,
         )
 
+        # Check completed tasks for the auth URL
         for task in done:
             for line in task.result():
+                logger.debug("claude auth login output: %s", line.rstrip())
                 url_match = re.search(r"(https://\S+)", line)
                 if url_match:
                     auth_url = url_match.group(1)
@@ -344,11 +355,27 @@ async def start_claude_login() -> dict:
             if auth_url:
                 break
 
-        # Cancel pending tasks
-        for task in pending:
-            task.cancel()
+        # If we didn't find it in the first stream, check the other
+        if not auth_url:
+            for task in pending:
+                try:
+                    lines = await asyncio.wait_for(task, timeout=5)
+                    for line in lines:
+                        logger.debug("claude auth login output (pending): %s", line.rstrip())
+                        url_match = re.search(r"(https://\S+)", line)
+                        if url_match:
+                            auth_url = url_match.group(1)
+                            break
+                except asyncio.TimeoutError:
+                    task.cancel()
 
-    except asyncio.TimeoutError:
+        # Cancel any remaining pending tasks
+        for task in pending:
+            if not task.done():
+                task.cancel()
+
+    except Exception:
+        logger.exception("Error reading claude auth login output")
         _claude_login_session["status"] = "error"
         _claude_login_session["error"] = "Timed out waiting for auth URL"
 
