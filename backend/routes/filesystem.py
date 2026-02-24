@@ -37,10 +37,8 @@ async def browse_directory(path: str = Query(default="")) -> BrowseResponse:
 
     resolved = os.path.realpath(path)
 
-    # Security: ensure resolved path is within the browse root.
-    # Normalise prefix so "/" doesn't become "//" when os.sep is appended.
-    root_prefix = browse_root if browse_root.endswith(os.sep) else browse_root + os.sep
-    if not (resolved == browse_root or resolved.startswith(root_prefix)):
+    # Security: ensure resolved path is within the browse root
+    if not (resolved == browse_root or resolved.startswith(browse_root + os.sep)):
         raise HTTPException(status_code=400, detail="Path is outside the browsable root")
 
     if not os.path.isdir(resolved):
@@ -67,7 +65,7 @@ async def browse_directory(path: str = Query(default="")) -> BrowseResponse:
     # Compute parent (None if at browse root)
     if resolved != browse_root:
         raw_parent = os.path.dirname(resolved)
-        parent = raw_parent if (raw_parent == browse_root or raw_parent.startswith(root_prefix)) else None
+        parent = raw_parent if (raw_parent == browse_root or raw_parent.startswith(browse_root + os.sep)) else None
     else:
         parent = None
 
