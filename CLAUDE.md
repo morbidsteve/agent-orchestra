@@ -88,13 +88,14 @@ When all quality gates pass after completing one or more features or bug fixes, 
 create a branch, commit, open a PR, and merge it** — do NOT wait for the user to ask. This is
 the final step of every successful pipeline. The workflow is:
 
-1. Create a feature branch from `master` (e.g., `feat/console-ux-overhaul`, `fix/sidebar-nav`)
-2. Stage and commit all changed files with a clear commit message
-3. Push the branch and open a PR via `gh pr create` with a summary + test plan
-4. Merge the PR via `gh pr merge --merge` (use merge commit, not squash or rebase)
-5. **Delete the branch** after merge — both remote (`gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/{branch}`) and local (`git branch -d {branch}`)
-6. `git checkout master && git pull` to return to a clean state
-7. Report the merged PR URL to the user
+1. **Bump the version** in `orchestra-dashboard/package.json` — increment patch for fixes, minor for features (e.g., `0.3.1` → `0.3.2` for a fix, `0.3.2` → `0.4.0` for a feature). The version shows in the sidebar so the user can verify they're on the latest.
+2. Create a feature branch from `master` (e.g., `feat/console-ux-overhaul`, `fix/sidebar-nav`)
+3. Stage and commit all changed files with a clear commit message
+4. Push the branch and open a PR via `gh pr create` with a summary + test plan
+5. Merge the PR via `gh pr merge --merge` (use merge commit, not squash or rebase)
+6. **Delete the branch** after merge — both remote (`gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/{branch}`) and local (`git branch -d {branch}`)
+7. `git checkout master && git pull` to return to a clean state
+8. Report the merged PR URL and new version to the user
 
 If the merge fails (e.g., branch protection, merge conflicts), report the PR URL and the
 error — do not silently retry or force-push.
