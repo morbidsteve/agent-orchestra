@@ -61,6 +61,17 @@ WORKFLOW_PIPELINES: dict[str, list[list[tuple[str, str]]]] = {
         [("test", "tester"), ("security", "devsecops")],
         [("report", "developer")],
     ],
+    "dev-only": [
+        [("develop", "developer")],
+    ],
+    "dev-test": [
+        [("develop", "developer")],
+        [("test", "tester")],
+    ],
+    "dev-security": [
+        [("develop", "developer")],
+        [("security", "devsecops")],
+    ],
 }
 
 # Patterns that suggest a feature evaluation request
@@ -71,6 +82,46 @@ _FEATURE_EVAL_PATTERNS = [
     re.compile(r"\bmarket\s+analysis\b", re.IGNORECASE),
     re.compile(r"\bcompetitive\s+analysis\b", re.IGNORECASE),
     re.compile(r"\bice\s+scor", re.IGNORECASE),
+]
+
+# Patterns for workflow detection
+_SECURITY_AUDIT_PATTERNS = [
+    re.compile(r"\bsecurity\s+audit\b", re.IGNORECASE),
+    re.compile(r"\bvulnerability\s+scan\b", re.IGNORECASE),
+    re.compile(r"\bpenetration\s+test\b", re.IGNORECASE),
+    re.compile(r"\bfind\s+vulnerabilit", re.IGNORECASE),
+]
+
+_DEV_SECURITY_PATTERNS = [
+    re.compile(r"\bauth", re.IGNORECASE),
+    re.compile(r"\bpassword", re.IGNORECASE),
+    re.compile(r"\bcredential", re.IGNORECASE),
+    re.compile(r"\btokens?\b", re.IGNORECASE),
+    re.compile(r"\bencrypt", re.IGNORECASE),
+    re.compile(r"\bapi\s*key", re.IGNORECASE),
+    re.compile(r"\blogin\b", re.IGNORECASE),
+]
+
+_CODE_REVIEW_PATTERNS = [
+    re.compile(r"\breview\b", re.IGNORECASE),
+    re.compile(r"\baudit\s+code\b", re.IGNORECASE),
+    re.compile(r"\bcheck\s+code\b", re.IGNORECASE),
+    re.compile(r"\blook\s+at\b", re.IGNORECASE),
+]
+
+_DEV_ONLY_PATTERNS = [
+    re.compile(r"\bfix\b.*\btypo\b", re.IGNORECASE),
+    re.compile(r"\brename\b", re.IGNORECASE),
+    re.compile(r"\badd\s+comment\b", re.IGNORECASE),
+    re.compile(r"\bupdate\s+text\b", re.IGNORECASE),
+    re.compile(r"\bchange\s+color\b", re.IGNORECASE),
+]
+
+_FULL_PIPELINE_PATTERNS = [
+    re.compile(r"\bthorough\b", re.IGNORECASE),
+    re.compile(r"\bcomprehensive\b", re.IGNORECASE),
+    re.compile(r"\bfull\s+review\b", re.IGNORECASE),
+    re.compile(r"\bproduction\s+ready\b", re.IGNORECASE),
 ]
 
 _MAX_CONSOLE_CONNECTIONS = 10
@@ -107,10 +158,43 @@ def _make_message(
 
 def _detect_workflow(text: str) -> str:
     """Detect workflow type from user message text."""
+    # Feature evaluation (existing patterns)
     for pattern in _FEATURE_EVAL_PATTERNS:
         if pattern.search(text):
             return "feature-eval"
-    return "full-pipeline"
+
+    # Security audit — check before dev-security since it's more specific
+    for pattern in _SECURITY_AUDIT_PATTERNS:
+        if pattern.search(text):
+            return "security-audit"
+
+    # Explicit full pipeline triggers
+    for pattern in _FULL_PIPELINE_PATTERNS:
+        if pattern.search(text):
+            return "full-pipeline"
+
+    # Very long prompts suggest complex tasks → full pipeline
+    if len(text) > 300:
+        return "full-pipeline"
+
+    # Code review
+    for pattern in _CODE_REVIEW_PATTERNS:
+        if pattern.search(text):
+            return "code-review"
+
+    # Short/simple tasks → dev-only
+    if len(text) < 50:
+        for pattern in _DEV_ONLY_PATTERNS:
+            if pattern.search(text):
+                return "dev-only"
+
+    # Security-sensitive development
+    for pattern in _DEV_SECURITY_PATTERNS:
+        if pattern.search(text):
+            return "dev-security"
+
+    # Default: dev + test (most tasks need dev + test, not 4 agents)
+    return "dev-test"
 
 
 def _create_execution_record(
@@ -222,9 +306,11 @@ async def _handle_user_message(
                 step["output"] = []
                 step["startedAt"] = None
                 step["completedAt"] = None
-            # Clear partial dynamic state and buffered messages
-            store.dynamic_agents.pop(eid, None)
-            store.file_activities.pop(eid, None)
+            # Only clear dynamic state if no agents were actually spawned
+            has_dynamic_agents = bool(store.dynamic_agents.get(eid))
+            if not has_dynamic_agents:
+                store.dynamic_agents.pop(eid, None)
+                store.file_activities.pop(eid, None)
             store.execution_messages.pop(eid, None)
             for conv in store.conversations.values():
                 if conv.get("activeExecutionId") == eid:

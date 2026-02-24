@@ -217,10 +217,17 @@ async def run_dynamic_execution(execution_id: str) -> None:
         status = "completed" if return_code == 0 else "failed"
         execution["status"] = status
         execution["completedAt"] = datetime.now(timezone.utc).isoformat()
+
+        # Diagnostic logging
+        agents_spawned = len(store.dynamic_agents.get(execution_id, {}))
         print(f"[DYNAMIC] Claude CLI exited: code={return_code}, status={status}, "
-              f"output_lines={len(output_lines)}", flush=True)
+              f"output_lines={len(output_lines)}, agents_spawned={agents_spawned}", flush=True)
         if stderr_output:
-            print(f"[DYNAMIC] stderr: {stderr_output[:500]}", flush=True)
+            # Log first 1000 chars of stderr for better diagnostics
+            print(f"[DYNAMIC] stderr (first 1000 chars): {stderr_output[:1000]}", flush=True)
+        if return_code != 0:
+            print(f"[DYNAMIC] Non-zero exit — last 5 output lines: "
+                  f"{output_lines[-5:] if output_lines else '(none)'}", flush=True)
 
         # Collect all dynamic agent file modifications
         all_files: list[str] = []
