@@ -3,7 +3,8 @@ import { render, screen } from '@testing-library/react';
 import { OfficeCanvas } from './OfficeCanvas.tsx';
 import type { OfficeState, AgentNode, AgentConnection } from '../../../lib/types.ts';
 
-const defaultAgents: AgentNode[] = [
+/** Test fixture — simulates agents that would be created dynamically at runtime. */
+const testAgents: AgentNode[] = [
   { role: 'developer', name: 'Developer', color: '#3b82f6', icon: 'Terminal', visualStatus: 'idle', currentTask: '' },
   { role: 'developer-2', name: 'Developer 2', color: '#06b6d4', icon: 'Code', visualStatus: 'idle', currentTask: '' },
   { role: 'tester', name: 'Tester', color: '#22c55e', icon: 'FlaskConical', visualStatus: 'idle', currentTask: '' },
@@ -13,7 +14,7 @@ const defaultAgents: AgentNode[] = [
 
 function makeOfficeState(overrides?: Partial<OfficeState>): OfficeState {
   return {
-    agents: defaultAgents,
+    agents: testAgents,
     connections: [],
     currentPhase: null,
     executionId: null,
@@ -36,16 +37,28 @@ describe('OfficeCanvas', () => {
     expect(screen.getByText('Orchestrator')).toBeInTheDocument();
   });
 
-  it('renders default idle connections when no active connections exist', () => {
+  it('renders idle connections derived from agents when no active connections exist', () => {
     const { container } = render(<OfficeCanvas officeState={makeOfficeState()} />);
 
-    // There should be SVG line elements for the 5 default idle connections
-    // (orchestrator -> developer, developer-2, tester, devsecops, business-dev)
+    // Idle connections are now derived from the agents list (one per agent)
     const svg = container.querySelector('svg');
     expect(svg).not.toBeNull();
 
     const lines = svg!.querySelectorAll('line');
     expect(lines.length).toBe(5);
+  });
+
+  it('renders empty office with no connections when no agents exist', () => {
+    const { container } = render(
+      <OfficeCanvas officeState={makeOfficeState({ agents: [] })} />,
+    );
+
+    const svg = container.querySelector('svg');
+    expect(svg).not.toBeNull();
+
+    // No agents means no idle connections
+    const lines = svg!.querySelectorAll('line');
+    expect(lines.length).toBe(0);
   });
 
   it('renders explicit connections instead of defaults when connections are provided', () => {
@@ -94,7 +107,7 @@ describe('OfficeCanvas', () => {
   });
 
   it('shows working status for active agents', () => {
-    const workingAgents = defaultAgents.map(a =>
+    const workingAgents = testAgents.map(a =>
       a.role === 'developer'
         ? { ...a, visualStatus: 'working' as const, currentTask: 'Implementing feature' }
         : a,

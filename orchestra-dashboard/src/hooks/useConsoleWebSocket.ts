@@ -130,23 +130,28 @@ export function useConsoleWebSocket(conversationId: string | null): UseConsoleWe
   useEffect(() => {
     if (!conversationId) return;
 
+    let cleaned = false;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/api/ws/console/${encodeURIComponent(conversationId)}`;
 
     function connect() {
+      if (cleaned) return;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
+        if (cleaned) { ws.close(); return; }
         setConnected(true);
       };
 
       ws.onmessage = (event: MessageEvent) => {
+        if (cleaned) return;
         const msg = JSON.parse(event.data as string) as WsConsoleMessage;
         handleMessage(msg);
       };
 
       ws.onclose = () => {
+        if (cleaned) return;
         setConnected(false);
         reconnectTimeoutRef.current = setTimeout(connect, 3000);
       };
@@ -159,8 +164,16 @@ export function useConsoleWebSocket(conversationId: string | null): UseConsoleWe
     connect();
 
     return () => {
+      cleaned = true;
       clearTimeout(reconnectTimeoutRef.current);
-      wsRef.current?.close();
+      const ws = wsRef.current;
+      if (ws) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        } else if (ws.readyState === WebSocket.CONNECTING) {
+          ws.onopen = () => ws.close();
+        }
+      }
       // Reset all state in cleanup so next conversationId starts fresh
       setMessages([]);
       setConnected(false);

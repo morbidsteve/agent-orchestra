@@ -36,15 +36,6 @@ const PLANTS: { x: string; y: string }[] = [
   { x: '93%', y: '93%' },
 ];
 
-/** Default idle connections showing team structure at rest */
-const DEFAULT_IDLE_CONNECTIONS: AgentConnection[] = [
-  { from: 'orchestrator', to: 'developer', label: '', active: false, dataFlow: 'handoff' },
-  { from: 'orchestrator', to: 'developer-2', label: '', active: false, dataFlow: 'handoff' },
-  { from: 'orchestrator', to: 'tester', label: '', active: false, dataFlow: 'handoff' },
-  { from: 'orchestrator', to: 'devsecops', label: '', active: false, dataFlow: 'handoff' },
-  { from: 'orchestrator', to: 'business-dev', label: '', active: false, dataFlow: 'handoff' },
-];
-
 const CENTER = { x: 50, y: 50 };
 
 export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: OfficeCanvasProps) {
@@ -69,14 +60,19 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
       dataFlow: 'broadcast' as const,
     }));
 
-  // Show explicit + orchestrator connections when any exist, idle defaults otherwise
-  // Deduplicate by from-to key, preferring active connections
+  // Show explicit + orchestrator connections when any exist, idle defaults otherwise.
+  // Derive idle connections from current agents instead of a hardcoded list.
   const hasActivity = connections.length > 0 || orchestratorConnections.length > 0;
+  const idleConnections: AgentConnection[] = agents.map(a => ({
+    from: 'orchestrator',
+    to: a.role,
+    label: '',
+    active: false,
+    dataFlow: 'handoff' as const,
+  }));
   const mergedConnections = hasActivity
     ? [...orchestratorConnections, ...connections]
-    : agents.length > 0
-      ? DEFAULT_IDLE_CONNECTIONS.filter(c => agentPositions.has(c.to))
-      : DEFAULT_IDLE_CONNECTIONS;
+    : idleConnections;
   const connMap = new Map<string, AgentConnection>();
   for (const c of mergedConnections) {
     const key = `${c.from}-${c.to}`;

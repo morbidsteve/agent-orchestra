@@ -111,16 +111,31 @@ export function Sidebar() {
         )}
       </nav>
 
-      {/* Agent Status */}
+      {/* Agent Status — show dynamic agents when active, registry agents as fallback */}
       <div className="px-4 py-4 border-t border-surface-600">
         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">Agents</p>
         <div className="space-y-2.5">
-          {agents.map((agent) => (
-            <div key={agent.role} className="flex items-center gap-2.5">
-              <StatusDot status={agent.status} size="sm" />
-              <span className="text-xs text-gray-400 truncate">{agent.name}</span>
-            </div>
-          ))}
+          {hasDynamicAgents ? (
+            dynamicAgents.map((agent) => (
+              <div key={agent.id} className="flex items-center gap-2.5">
+                <span className={cn(
+                  'h-2 w-2 rounded-full shrink-0',
+                  DYNAMIC_STATUS_COLORS[agent.status] || 'bg-gray-500',
+                  agent.status === 'running' && 'animate-pulse',
+                )} />
+                <span className="text-xs text-gray-400 truncate">{agent.name}</span>
+              </div>
+            ))
+          ) : agents.some(a => a.status === 'busy') ? (
+            agents.filter(a => a.status === 'busy').map((agent) => (
+              <div key={agent.role} className="flex items-center gap-2.5">
+                <StatusDot status={agent.status} size="sm" />
+                <span className="text-xs text-gray-400 truncate">{agent.name}</span>
+              </div>
+            ))
+          ) : (
+            <span className="text-xs text-gray-500">No active agents</span>
+          )}
         </div>
       </div>
 

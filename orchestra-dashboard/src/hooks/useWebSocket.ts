@@ -73,18 +73,22 @@ export function useWebSocket(executionId: string | null): UseWebSocketResult {
   useEffect(() => {
     if (!executionId) return;
 
+    let cleaned = false;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/api/ws/${encodeURIComponent(executionId)}`;
 
     function connect() {
+      if (cleaned) return;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
+        if (cleaned) { ws.close(); return; }
         setConnected(true);
       };
 
       ws.onmessage = (event: MessageEvent) => {
+        if (cleaned) return;
         const msg = JSON.parse(event.data as string) as WsMessage;
         switch (msg.type) {
           case 'output':
@@ -122,6 +126,7 @@ export function useWebSocket(executionId: string | null): UseWebSocketResult {
       };
 
       ws.onclose = () => {
+        if (cleaned) return;
         setConnected(false);
         reconnectTimeoutRef.current = setTimeout(connect, 3000);
       };
@@ -134,8 +139,19 @@ export function useWebSocket(executionId: string | null): UseWebSocketResult {
     connect();
 
     return () => {
+      cleaned = true;
       clearTimeout(reconnectTimeoutRef.current);
-      wsRef.current?.close();
+      const ws = wsRef.current;
+      if (ws) {
+        // Only close if the connection is actually open or still connecting
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        } else if (ws.readyState === WebSocket.CONNECTING) {
+          // Defer close until after the connection is established to avoid
+          // "WebSocket is closed before the connection is established" warning
+          ws.onopen = () => ws.close();
+        }
+      }
     };
   }, [executionId]);
 
