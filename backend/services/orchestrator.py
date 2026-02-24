@@ -236,11 +236,17 @@ async def _run_phase(execution_id: str, step: dict[str, Any]) -> None:
 
     try:
         # Only try the real orchestrator if dependencies are available
-        if _check_orchestrator_available():
+        cli_available = _check_orchestrator_available()
+        logger.info("Phase %s: CLI available=%s, claude path=%s",
+                     phase, cli_available, shutil.which("claude"))
+        if cli_available:
             success = await _try_real_orchestrator(execution_id, phase, step, activity)
+            logger.info("Phase %s: _try_real_orchestrator returned %s", phase, success)
             if not success:
+                logger.warning("Phase %s: falling back to simulation", phase)
                 await _simulate_phase(execution_id, phase, step, activity)
         else:
+            logger.warning("Phase %s: CLI not available, using simulation", phase)
             await _simulate_phase(execution_id, phase, step, activity)
     finally:
         # Capture terminal snapshot before marking agent as done
@@ -307,6 +313,7 @@ async def _try_real_orchestrator(
 
     claude_path = shutil.which("claude")
     if not claude_path:
+        logger.error("_try_real_orchestrator: claude binary not found on PATH")
         return False
 
     # Build the prompt: phase instructions + user task + previous context
@@ -351,6 +358,8 @@ async def _try_real_orchestrator(
     # Unset CLAUDECODE to avoid nested session detection
     env = {**os.environ, "CLAUDECODE": ""}
 
+    logger.info("Running Claude CLI: %s (cwd=%s, model=%s)", claude_path, cwd, model)
+
     try:
         process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -359,7 +368,9 @@ async def _try_real_orchestrator(
             cwd=cwd,
             env=env,
         )
-    except (FileNotFoundError, OSError):
+        logger.info("Claude CLI process started (pid=%s)", process.pid)
+    except (FileNotFoundError, OSError) as exc:
+        logger.error("Failed to start Claude CLI: %s", exc)
         return False
 
     assert process.stdout is not None
@@ -464,10 +475,10 @@ async def _try_real_orchestrator(
                             })
 
     except Exception:
-        import logging
-        logging.getLogger(__name__).exception("Error reading Claude CLI output")
+        logger.exception("Error reading Claude CLI output")
 
     await process.wait()
+    logger.info("Claude CLI exited with code %s", process.returncode)
 
     # If the process failed with a non-zero exit code, still return True
     # (we tried, it ran, it just had errors — don't fall back to simulation)
