@@ -58,8 +58,10 @@ async def run_dynamic_execution(execution_id: str) -> None:
     Launch a single Claude CLI session as the orchestrator.
     The orchestrator uses MCP tools to spawn and manage sub-agents.
     """
+    print(f"[DYNAMIC] run_dynamic_execution called for {execution_id}", flush=True)
     execution = store.executions.get(execution_id)
     if not execution:
+        print(f"[DYNAMIC] execution {execution_id} NOT FOUND in store!", flush=True)
         return
 
     execution["status"] = "running"
@@ -126,6 +128,9 @@ async def run_dynamic_execution(execution_id: str) -> None:
         # Unset CLAUDECODE to avoid nested session detection
         env = {**os.environ, "CLAUDECODE": ""}
 
+        print(f"[DYNAMIC] Launching Claude CLI: model={execution.get('model')}, cwd={work_dir}", flush=True)
+        print(f"[DYNAMIC] Command: {' '.join(cmd[:8])}...", flush=True)
+
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -133,6 +138,7 @@ async def run_dynamic_execution(execution_id: str) -> None:
             cwd=work_dir,
             env=env,
         )
+        print(f"[DYNAMIC] Claude CLI started (pid={process.pid})", flush=True)
 
         output_lines: list[str] = []
 
@@ -204,9 +210,17 @@ async def run_dynamic_execution(execution_id: str) -> None:
 
         # Determine final status
         return_code = process.returncode
+        stderr_output = ""
+        if process.stderr:
+            stderr_bytes = await process.stderr.read()
+            stderr_output = stderr_bytes.decode("utf-8", errors="replace").strip()
         status = "completed" if return_code == 0 else "failed"
         execution["status"] = status
         execution["completedAt"] = datetime.now(timezone.utc).isoformat()
+        print(f"[DYNAMIC] Claude CLI exited: code={return_code}, status={status}, "
+              f"output_lines={len(output_lines)}", flush=True)
+        if stderr_output:
+            print(f"[DYNAMIC] stderr: {stderr_output[:500]}", flush=True)
 
         # Collect all dynamic agent file modifications
         all_files: list[str] = []
@@ -220,11 +234,12 @@ async def run_dynamic_execution(execution_id: str) -> None:
         })
 
     except FileNotFoundError:
-        # Re-raise so the caller can fall back to the fixed pipeline
+        print("[DYNAMIC] Claude CLI not found — will fall back", flush=True)
         execution["status"] = "queued"
         execution["startedAt"] = None
         raise
-    except Exception:
+    except Exception as exc:
+        print(f"[DYNAMIC] Orchestrator exception: {exc}", flush=True)
         execution["status"] = "failed"
         execution["completedAt"] = datetime.now(timezone.utc).isoformat()
         await _broadcast_output(execution_id, "[Orchestrator error]", "orchestrator")

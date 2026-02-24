@@ -206,17 +206,29 @@ async def _handle_user_message(
     async def _run_with_fallback(eid: str) -> None:
         try:
             await run_dynamic_execution(eid)
-        except FileNotFoundError:
-            # Claude CLI not available — fall back to the fixed pipeline
-            await run_execution(eid)
         except Exception:
-            # Other dynamic orchestrator errors — also fall back
-            exc = store.executions.get(eid)
-            if exc and exc.get("status") == "failed":
-                # Reset so the fixed pipeline can run cleanly
-                exc["status"] = "queued"
-                exc["startedAt"] = None
-                exc["completedAt"] = None
+            pass  # Fall through to status check below
+
+        # If the dynamic orchestrator didn't complete successfully (it catches
+        # its own exceptions internally), fall back to the fixed pipeline.
+        execution = store.executions.get(eid)
+        if execution and execution.get("status") != "completed":
+            # Reset execution state for a fresh pipeline run
+            execution["status"] = "queued"
+            execution["startedAt"] = None
+            execution["completedAt"] = None
+            for step in execution.get("pipeline", []):
+                step["status"] = "pending"
+                step["output"] = []
+                step["startedAt"] = None
+                step["completedAt"] = None
+            # Clear partial dynamic state and buffered messages
+            store.dynamic_agents.pop(eid, None)
+            store.file_activities.pop(eid, None)
+            store.execution_messages.pop(eid, None)
+            for conv in store.conversations.values():
+                if conv.get("activeExecutionId") == eid:
+                    store.console_messages.pop(conv["id"], None)
             await run_execution(eid)
 
     asyncio.create_task(_run_with_fallback(exec_id))
