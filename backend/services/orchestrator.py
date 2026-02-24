@@ -339,11 +339,14 @@ async def _try_real_orchestrator(
     if prev_context:
         full_prompt += f"\n\n## Context from Previous Phases\n{prev_context}"
 
-    # Determine working directory
-    cwd = "/workspace"
+    # Determine working directory — use resolvedProjectPath if set,
+    # otherwise fall back to the current process working directory.
+    # (In Docker the app lives at /app, in devcontainer at /workspace)
     resolved_path = execution.get("resolvedProjectPath", "")
     if resolved_path and os.path.isdir(resolved_path):
         cwd = resolved_path
+    else:
+        cwd = os.getcwd()
 
     model = execution.get("model", "sonnet")
 
