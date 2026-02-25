@@ -89,15 +89,10 @@ async def _current_commit() -> str:
 @router.get("/tags")
 async def system_tags() -> JSONResponse:
     """List all git tags sorted by version descending, with current ref info."""
-    # 1. Fetch all remote tags
-    rc, _, err = await _run_output(
+    # 1. Try to fetch remote tags (best-effort — still list local tags if fetch fails)
+    await _run_output(
         ["git", "-C", str(APP_DIR), "fetch", "--tags", "origin"],
     )
-    if rc != 0:
-        return JSONResponse(
-            {"status": "error", "message": f"git fetch --tags failed: {err}"},
-            status_code=500,
-        )
 
     # 2. List tags sorted by version descending
     rc, out, err = await _run_output(
