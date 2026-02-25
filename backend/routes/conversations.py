@@ -452,7 +452,7 @@ async def send_message(conversation_id: str, req: SendMessageRequest) -> dict:
 
     # Generate orchestra response
     model = conversation.get("model", "sonnet")
-    await _handle_user_message(conversation, req.text, model)
+    await _handle_user_message(conversation, req.text, model, conversation.get("projectSource"))
 
     conversation["updatedAt"] = datetime.now(timezone.utc).isoformat()
     return conversation

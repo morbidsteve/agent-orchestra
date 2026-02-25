@@ -17,8 +17,6 @@ export function SessionView({ sessionId }: SessionViewProps) {
     sessions,
     sendMessage,
     startConversation,
-    model,
-    setModel,
   } = useSessionContext();
 
   const session = sessions.find(s => s.id === sessionId);
@@ -36,8 +34,6 @@ export function SessionView({ sessionId }: SessionViewProps) {
       executionId={executionId}
       messages={session.messages}
       isLoading={session.isLoading}
-      model={model}
-      setModel={setModel}
       sendMessage={sendMessage}
       startConversation={startConversation}
     />
@@ -51,8 +47,6 @@ interface SessionViewInnerProps {
   executionId: string | null;
   messages: import('../../lib/types.ts').ConversationMessage[];
   isLoading: boolean;
-  model: string;
-  setModel: (model: string) => void;
   sendMessage: (text: string) => Promise<void>;
   startConversation: (text: string, projectSource?: import('../../lib/types.ts').ProjectSource, model?: string) => Promise<void>;
 }
@@ -64,8 +58,6 @@ function SessionViewInner({
   executionId,
   messages,
   isLoading,
-  model,
-  setModel,
   sendMessage,
   startConversation,
 }: SessionViewInnerProps) {
@@ -78,9 +70,9 @@ function SessionViewInner({
     if (conversation) {
       await sendMessage(text);
     } else {
-      await startConversation(text, undefined, model);
+      await startConversation(text);
     }
-  }, [conversation, sendMessage, startConversation, model]);
+  }, [conversation, sendMessage, startConversation]);
 
   const handleClarificationReply = useCallback((answer: string) => {
     if (ws.pendingQuestion) {
@@ -106,8 +98,6 @@ function SessionViewInner({
           conversation={conversation}
           messages={messages}
           isLoading={isLoading}
-          model={model}
-          onModelChange={setModel}
           onSend={handleSend}
           onClarificationReply={handleClarificationReply}
           executionId={executionId}
