@@ -461,7 +461,7 @@ async def _try_real_orchestrator(
         if prev_step["output"]:
             prev_context_parts.append(
                 f"## {prev_step['phase'].title()} Phase Output\n"
-                + "\n".join(prev_step["output"][-20:])
+                + "\n".join(prev_step["output"][-200:])
             )
     prev_context = "\n\n".join(prev_context_parts)
 

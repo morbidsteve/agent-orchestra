@@ -63,8 +63,8 @@ async def spawn_agent(
         "output": [],
         "filesModified": [],
         "filesRead": [],
-        "color": role_colors.get(req.role, "#6b7280"),
-        "icon": role_icons.get(req.role, "Bot"),
+        "color": role_colors.get(req.role) or (store.agents.get(req.role) or {}).get("color", "#6b7280"),
+        "icon": role_icons.get(req.role) or (store.agents.get(req.role) or {}).get("icon", "Bot"),
         "spawnedAt": now,
         "completedAt": None,
         "model": req.model,
@@ -109,7 +109,7 @@ async def get_agent_status(
             return {
                 "agent_id": agent_id,
                 "status": agent["status"],
-                "output": "\n".join(agent["output"][-50:]),  # Last 50 lines
+                "output": "\n".join(agent["output"][-500:]),
                 "filesModified": agent["filesModified"],
                 "filesRead": agent["filesRead"],
             }
@@ -139,7 +139,7 @@ async def get_agent_result(
         return {
             "agent_id": agent_id,
             "status": agent["status"],
-            "output": "\n".join(agent["output"][-100:]),
+            "output": "\n".join(agent["output"][-500:]),
             "filesModified": agent["filesModified"],
         }
 
@@ -152,6 +152,6 @@ async def get_agent_result(
     return {
         "agent_id": agent_id,
         "status": agent["status"],
-        "output": "\n".join(agent["output"][-100:]) if agent["status"] in ("completed", "failed") else "",
+        "output": "\n".join(agent["output"][-500:]) if agent["status"] in ("completed", "failed") else "",
         "filesModified": agent.get("filesModified", []),
     }
