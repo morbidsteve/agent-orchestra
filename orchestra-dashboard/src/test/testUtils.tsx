@@ -2,7 +2,7 @@ import { render } from '@testing-library/react';
 import type { RenderOptions } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { OrchestraProvider } from '../context/OrchestraContext';
-import { ConversationProvider } from '../context/ConversationContext';
+import { SessionProvider } from '../context/SessionContext';
 import type { OrchestraState } from '../lib/types';
 import { mockState } from '../lib/mockData';
 import type { ReactElement } from 'react';
@@ -20,9 +20,9 @@ export function renderWithProviders(
     return (
       <MemoryRouter initialEntries={initialEntries}>
         <OrchestraProvider initialState={initialState}>
-          <ConversationProvider>
+          <SessionProvider>
             {children}
-          </ConversationProvider>
+          </SessionProvider>
         </OrchestraProvider>
       </MemoryRouter>
     );
