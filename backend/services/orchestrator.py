@@ -58,11 +58,9 @@ PHASE_AGENTS_INFO: dict[str, dict[str, str]] = {
 # ──────────────────────────────────────────────────────────────────────────────
 
 _AUTONOMOUS_PREAMBLE = (
-    "IMPORTANT: You are running as an autonomous agent in a pipeline. "
-    "You have access to these tools: Read, Edit, Write, Bash, Glob, Grep, "
-    "and mcp__orchestra__ask_user. "
-    "Do NOT attempt to use AskUserQuestion, EnterPlanMode, Task, Skill, or any other "
-    "interactive/delegation tools — they are unavailable.\n\n"
+    "You are an autonomous agent in the Agent Orchestra pipeline with FULL access to all "
+    "Claude Code tools — Read, Edit, Write, Bash, Glob, Grep, Task, EnterPlanMode, and more. "
+    "Use whatever tools you need to complete your task thoroughly.\n\n"
     "If you need clarification from the user, call the mcp__orchestra__ask_user tool "
     "with your question (and optionally a list of suggested answers). The question will "
     "appear in the Orchestra dashboard and you will receive the user's reply. Only ask "
@@ -516,7 +514,6 @@ async def _try_real_orchestrator(
         "--model", model,
         "--no-session-persistence",
         "--mcp-config", mcp_config_path,
-        "--allowedTools", "Read,Edit,Write,Bash,Glob,Grep,mcp__orchestra__ask_user",
     ]
 
     # Unset CLAUDECODE to avoid nested session detection
