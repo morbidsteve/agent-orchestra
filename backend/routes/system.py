@@ -14,7 +14,8 @@ from starlette.responses import JSONResponse
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
-APP_DIR = Path("/app")
+# Resolve repo root: prefer /workspace (devcontainer), fall back to /app (production Docker)
+APP_DIR = Path("/workspace") if Path("/workspace/.git").is_dir() else Path("/app")
 
 
 # ---------------------------------------------------------------------------
