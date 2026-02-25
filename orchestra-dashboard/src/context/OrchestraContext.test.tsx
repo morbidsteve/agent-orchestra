@@ -17,7 +17,7 @@ describe('OrchestraContext', () => {
   it('provides initial state', () => {
     const { result } = renderHook(() => useOrchestra(), { wrapper });
     expect(result.current.executions).toHaveLength(4);
-    expect(result.current.agents).toHaveLength(5);
+    expect(result.current.agents).toHaveLength(8);
     expect(result.current.findings).toHaveLength(10);
     expect(result.current.workflows).toHaveLength(5);
   });

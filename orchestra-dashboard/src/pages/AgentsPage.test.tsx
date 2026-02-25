@@ -10,7 +10,7 @@ describe('AgentsPage', () => {
 
   it('shows online/offline count', () => {
     renderWithProviders(<AgentsPage />);
-    expect(screen.getByText(/4 online/)).toBeInTheDocument();
+    expect(screen.getByText(/7 online/)).toBeInTheDocument();
     expect(screen.getByText(/1 offline/)).toBeInTheDocument();
   });
 
