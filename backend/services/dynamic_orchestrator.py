@@ -258,9 +258,6 @@ async def run_dynamic_execution(execution_id: str) -> None:
             "--output-format", "stream-json",
             "--model", model,
             "--mcp-config", mcp_config_path,
-            "--allowedTools",
-            "mcp__orchestra__spawn_agent,mcp__orchestra__get_agent_status,mcp__orchestra__ask_user,"
-            "Read,Glob,Grep",
             "--dangerously-skip-permissions",
         ]
 
@@ -453,22 +450,13 @@ async def launch_agent_subprocess(execution_id: str, agent_id: str) -> None:
         else:
             system_prompt = f"You are a {agent['role']} specialist. Complete the assigned task thoroughly."
 
-    # Build allowed tools based on role
-    if agent["role"] in ("security-reviewer", "devsecops"):
-        allowed_tools = "Read,Glob,Grep"
-    else:
-        custom_agent = store.agents.get(agent["role"])
-        if custom_agent and custom_agent.get("isCustom") and custom_agent.get("tools"):
-            allowed_tools = ",".join(custom_agent["tools"])
-        else:
-            allowed_tools = "Read,Edit,Write,Bash,Glob,Grep"
-
     full_prompt = (
         f"{system_prompt}\n\n"
         f"## Your Task\n{agent['task']}\n\n"
         f"## Working Directory\n{work_dir}\n\n"
-        "Complete this task. Be thorough but focused. Do not use interactive tools "
-        "(AskUserQuestion, EnterPlanMode, Task, Skill)."
+        "You have full access to all Claude Code tools. Use whatever you need to complete "
+        "this task thoroughly. If you need to ask the user a question, use the "
+        "mcp__orchestra__ask_user tool — it routes through the Orchestra dashboard."
     )
 
     agent_mcp_config_path = ""
@@ -501,7 +489,6 @@ async def launch_agent_subprocess(execution_id: str, agent_id: str) -> None:
             "--output-format", "stream-json",
             "--model", model,
             "--mcp-config", agent_mcp_config_path,
-            "--allowedTools", f"{allowed_tools},mcp__orchestra__ask_user",
             "--dangerously-skip-permissions",
         ]
 
