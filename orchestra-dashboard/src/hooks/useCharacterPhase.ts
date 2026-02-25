@@ -6,8 +6,8 @@ import type { AgentVisualStatus, CharacterPhase } from '../lib/types.ts';
  * CharacterPhase with timed transitions for walking animations.
  *
  * Transitions:
- *   working → walking-to-desk → (800ms) → at-desk-working
- *   done    → celebrating → (1500ms) → walking-to-center → (800ms) → at-center
+ *   working → walking-to-desk → (1200ms) → at-desk-working
+ *   done    → celebrating → (2000ms) → walking-to-center → (1200ms) → at-center
  *   error   → walking-to-center → (800ms) → at-center
  *   idle    → at-center (or walking-to-center → at-center if at desk)
  */
@@ -34,20 +34,20 @@ function computeTransition(
   if (status === 'working') {
     return {
       immediatePhase: 'walking-to-desk',
-      timers: [[800, 'at-desk-working']],
+      timers: [[1200, 'at-desk-working']],
     };
   }
   if (status === 'done') {
     return {
       immediatePhase: 'celebrating',
-      timers: [[1500, 'walking-to-center'], [2300, 'at-center']],
+      timers: [[2000, 'walking-to-center'], [3200, 'at-center']],
     };
   }
   if (status === 'error') {
     if (wasAtDesk) {
       return {
         immediatePhase: 'walking-to-center',
-        timers: [[800, 'at-center']],
+        timers: [[1200, 'at-center']],
       };
     }
     return { immediatePhase: 'at-center', timers: [] };
@@ -56,7 +56,7 @@ function computeTransition(
   if (wasAtDesk) {
     return {
       immediatePhase: 'walking-to-center',
-      timers: [[800, 'at-center']],
+      timers: [[1200, 'at-center']],
     };
   }
   return { immediatePhase: 'at-center', timers: [] };
