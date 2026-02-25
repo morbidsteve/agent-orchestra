@@ -227,15 +227,15 @@ describe('AgentCharacter', () => {
     expect(wrapper.style.transition).toContain('800ms');
   });
 
-  it('starts at at-center when initialized with working status (no transition)', () => {
-    // When initialized directly with working, no transition fires
-    // because the hook only transitions on *changes*
+  it('starts at desk when initialized with working status (remount fix)', () => {
+    // When initialized directly with working, agent should be at desk
+    // not at center — this is the remount case
     const { container } = render(
       <AgentCharacter agent={workingAgent} {...defaultPositions} />,
     );
     const wrapper = container.firstElementChild as HTMLElement;
-    // Position should be idlePosition (at-center phase)
-    expect(wrapper.style.left).toBe('50%');
-    expect(wrapper.style.top).toBe('56%');
+    // Position should be deskPosition (at-desk-working phase)
+    expect(wrapper.style.left).toBe('20%');
+    expect(wrapper.style.top).toBe('30%');
   });
 });

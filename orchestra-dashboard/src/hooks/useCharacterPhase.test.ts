@@ -17,6 +17,25 @@ describe('useCharacterPhase', () => {
     expect(result.current).toBe('at-center');
   });
 
+  it('initializes at "at-desk-working" when visualStatus is "working" (remount fix)', () => {
+    const { result } = renderHook(() => useCharacterPhase('working'));
+    expect(result.current).toBe('at-desk-working');
+  });
+
+  it('initializes at "celebrating" when visualStatus is "done" and transitions to at-center', () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useCharacterPhase('done'));
+    expect(result.current).toBe('celebrating');
+
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(result.current).toBe('walking-to-center');
+
+    act(() => { vi.advanceTimersByTime(1200); });
+    expect(result.current).toBe('at-center');
+
+    vi.useRealTimers();
+  });
+
   // ── working → walking-to-hub → at-hub-pickup → walking-to-desk → at-desk-working ──
 
   it('transitions to "walking-to-hub" immediately when status changes to "working"', () => {

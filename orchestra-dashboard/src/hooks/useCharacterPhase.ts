@@ -81,11 +81,23 @@ function reducer(state: State, action: Action): State {
   return { ...state, phase: action.phase };
 }
 
+function initialPhaseFor(status: AgentVisualStatus): CharacterPhase {
+  switch (status) {
+    case 'working': return 'at-desk-working';
+    case 'done': return 'celebrating';
+    case 'idle':
+    case 'error':
+    default: return 'at-center';
+  }
+}
+
 function createInitialState(visualStatus: AgentVisualStatus): State {
   return {
-    phase: 'at-center',
+    phase: initialPhaseFor(visualStatus),
     visualStatus,
-    pendingTimers: [],
+    pendingTimers: visualStatus === 'done'
+      ? [[2000, 'walking-to-center'] as [number, CharacterPhase], [3200, 'at-center'] as [number, CharacterPhase]]
+      : [],
     generation: 0,
   };
 }
