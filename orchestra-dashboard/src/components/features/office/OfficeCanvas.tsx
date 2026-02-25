@@ -1,25 +1,16 @@
+import { useState } from 'react';
 import { DeskWorkstation } from './WorkstationCard.tsx';
 import { CommandCenter } from './OrchestratorDesk.tsx';
-import { ConnectionLine } from './ConnectionLine.tsx';
 import { AgentCharacter } from './AgentCharacter.tsx';
+import { AgentPopup } from './AgentPopup.tsx';
 import { getStablePosition } from '../../../lib/layoutEngine.ts';
-import type { OfficeState, AgentConnection } from '../../../lib/types.ts';
+import type { OfficeState } from '../../../lib/types.ts';
 
 interface OfficeCanvasProps {
   officeState: OfficeState;
   agentOutputMap?: Map<string, string[]>;
   agentFilesMap?: Map<string, string[]>;
 }
-
-// Color lookup for connections
-const AGENT_COLORS: Record<string, string> = {
-  'orchestrator': '#3b82f6',
-  'developer': '#3b82f6',
-  'developer-2': '#06b6d4',
-  'tester': '#22c55e',
-  'devsecops': '#f97316',
-  'business-dev': '#a855f7',
-};
 
 /** Zone labels positioned around the office floor */
 const ZONE_LABELS: { text: string; x: string; y: string }[] = [
@@ -37,8 +28,6 @@ const PLANTS: { x: string; y: string }[] = [
   { x: '93%', y: '93%' },
 ];
 
-const CENTER = { x: 50, y: 50 };
-
 /** Compute idle cluster positions in a small arc below the orchestrator */
 function getIdlePosition(index: number, total: number): { x: number; y: number } {
   const centerX = 50;
@@ -55,8 +44,11 @@ function getIdlePosition(index: number, total: number): { x: number; y: number }
 }
 
 export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: OfficeCanvasProps) {
-  const { agents, connections, currentPhase, executionId } = officeState;
+  const { agents, currentPhase, executionId } = officeState;
   const isActive = executionId !== null && currentPhase !== null;
+
+  // Click-to-inspect state
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
 
   // Build position map for agents using layout engine
   const agentPositions = new Map<string, { x: number; y: number }>();
@@ -65,37 +57,10 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
     agentPositions.set(agent.role, { x: pos.x, y: pos.y });
   });
 
-  // Derive orchestrator -> working-agent connections from agent status
-  const orchestratorConnections: AgentConnection[] = agents
-    .filter(a => a.visualStatus === 'working')
-    .map(a => ({
-      from: 'orchestrator',
-      to: a.role,
-      label: '',
-      active: true,
-      dataFlow: 'broadcast' as const,
-    }));
-
-  // Show explicit + orchestrator connections when any exist, idle defaults otherwise.
-  // Derive idle connections from current agents instead of a hardcoded list.
-  const hasActivity = connections.length > 0 || orchestratorConnections.length > 0;
-  const idleConnections: AgentConnection[] = agents.map(a => ({
-    from: 'orchestrator',
-    to: a.role,
-    label: '',
-    active: false,
-    dataFlow: 'handoff' as const,
-  }));
-  const mergedConnections = hasActivity
-    ? [...orchestratorConnections, ...connections]
-    : idleConnections;
-  const connMap = new Map<string, AgentConnection>();
-  for (const c of mergedConnections) {
-    const key = `${c.from}-${c.to}`;
-    const existing = connMap.get(key);
-    if (!existing || (c.active && !existing.active)) connMap.set(key, c);
-  }
-  const displayConnections = [...connMap.values()];
+  const selectedAgentNode = selectedAgent
+    ? agents.find(a => a.role === selectedAgent) ?? null
+    : null;
+  const selectedAgentPos = selectedAgent ? agentPositions.get(selectedAgent) : undefined;
 
   return (
     <div
@@ -105,34 +70,6 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
         border: '1px solid #2a2d35',
       }}
     >
-      {/* SVG connection layer - viewBox maps to percentage coords */}
-      {/* NOTE: This must be the first <svg> in the DOM so tests can find it via querySelector('svg') */}
-      <svg
-        className="absolute inset-0 h-full w-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        style={{ pointerEvents: 'none', zIndex: 1 }}
-      >
-        {displayConnections.map((conn) => {
-          const fromPos = conn.from === 'orchestrator' ? CENTER : (agentPositions.get(conn.from) || CENTER);
-          const toPos = conn.to === 'orchestrator' ? CENTER : (agentPositions.get(conn.to) || CENTER);
-          const color = agents.find(a => a.role === conn.from)?.color || AGENT_COLORS[conn.from] || '#6b7280';
-
-          return (
-            <ConnectionLine
-              key={`${conn.from}-${conn.to}`}
-              x1={fromPos.x}
-              y1={fromPos.y}
-              x2={toPos.x}
-              y2={toPos.y}
-              color={color}
-              active={conn.active}
-              label={conn.label}
-            />
-          );
-        })}
-      </svg>
-
       {/* Carpet-tile grid background */}
       <div
         className="absolute inset-0"
@@ -314,6 +251,7 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
                 position={pos}
                 outputLines={outputLines}
                 filesWorking={filesWorking}
+                onClick={() => setSelectedAgent(agent.role)}
               />
             </div>
           );
@@ -331,7 +269,7 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
       </div>
 
       {/* Walking character layer */}
-      <div className="absolute inset-0" style={{ zIndex: 4, pointerEvents: 'none' }}>
+      <div className="absolute inset-0" style={{ zIndex: 4 }}>
         {agents.map((agent, index) => {
           const deskPos = agentPositions.get(agent.role);
           if (!deskPos) return null;
@@ -342,10 +280,22 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
               agent={agent}
               idlePosition={idlePos}
               deskPosition={{ x: deskPos.x, y: deskPos.y - 4 }}
+              onClick={() => setSelectedAgent(agent.role)}
             />
           );
         })}
       </div>
+
+      {/* Agent Popup overlay */}
+      {selectedAgentNode && selectedAgentPos && (
+        <AgentPopup
+          agent={selectedAgentNode}
+          output={agentOutputMap?.get(selectedAgent!) ?? []}
+          files={agentFilesMap?.get(selectedAgent!) ?? []}
+          onClose={() => setSelectedAgent(null)}
+          position={selectedAgentPos}
+        />
+      )}
 
       {/* CSS animations */}
       <style>{`
@@ -359,44 +309,55 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
             transform: scale(1);
           }
         }
-        @keyframes agentBob {
+        @keyframes charBob {
           0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-3px); }
+          50% { transform: translateY(-5px); }
         }
-        @keyframes legSwingForward {
+        @keyframes charLegSwingFwd {
           0%, 100% { transform: rotate(0deg); }
-          50% { transform: rotate(25deg); }
+          50% { transform: rotate(35deg); }
         }
-        @keyframes legSwingBack {
+        @keyframes charLegSwingBack {
           0%, 100% { transform: rotate(0deg); }
-          50% { transform: rotate(-25deg); }
+          50% { transform: rotate(-35deg); }
         }
-        @keyframes armSwingForward {
+        @keyframes charArmSwingFwd {
           0%, 100% { transform: rotate(0deg); }
-          50% { transform: rotate(20deg); }
+          50% { transform: rotate(30deg); }
         }
-        @keyframes armSwingBack {
+        @keyframes charArmSwingBack {
           0%, 100% { transform: rotate(0deg); }
-          50% { transform: rotate(-20deg); }
+          50% { transform: rotate(-30deg); }
         }
-        @keyframes typingBob {
-          0%, 100% { transform: rotate(0deg); }
-          50% { transform: rotate(3deg); }
+        @keyframes charTypingLeft {
+          0%, 100% { transform: rotate(0deg) translateY(0); }
+          25% { transform: rotate(5deg) translateY(-2px); }
+          75% { transform: rotate(-3deg) translateY(-1px); }
         }
-        @keyframes idleSway {
+        @keyframes charTypingRight {
+          0%, 100% { transform: rotate(0deg) translateY(0); }
+          25% { transform: rotate(-5deg) translateY(-2px); }
+          75% { transform: rotate(3deg) translateY(-1px); }
+        }
+        @keyframes charIdleSway {
           0%, 100% { transform: translate(0, 0) rotate(0deg); }
-          50% { transform: translate(1px, 0) rotate(0.5deg); }
+          50% { transform: translate(1.5px, 0) rotate(0.8deg); }
         }
-        @keyframes celebrateJump {
+        @keyframes charCelebrateJump {
           0%, 100% { transform: translateY(0); }
-          30% { transform: translateY(-10px); }
+          25% { transform: translateY(-14px); }
           50% { transform: translateY(-6px); }
-          70% { transform: translateY(-8px); }
+          75% { transform: translateY(-10px); }
         }
-        @keyframes celebrateArms {
+        @keyframes charCelebrateArmsL {
           0%, 100% { transform: rotate(0deg); }
-          30% { transform: rotate(-70deg); }
-          70% { transform: rotate(-70deg); }
+          25% { transform: rotate(-80deg); }
+          75% { transform: rotate(-80deg); }
+        }
+        @keyframes charCelebrateArmsR {
+          0%, 100% { transform: rotate(0deg); }
+          25% { transform: rotate(80deg); }
+          75% { transform: rotate(80deg); }
         }
       `}</style>
     </div>

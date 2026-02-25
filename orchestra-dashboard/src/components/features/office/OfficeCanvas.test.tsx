@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { OfficeCanvas } from './OfficeCanvas.tsx';
-import type { OfficeState, AgentNode, AgentConnection } from '../../../lib/types.ts';
+import type { OfficeState, AgentNode } from '../../../lib/types.ts';
 
 /** Test fixture — simulates agents that would be created dynamically at runtime. */
 const testAgents: AgentNode[] = [
@@ -38,45 +39,44 @@ describe('OfficeCanvas', () => {
     expect(screen.getByText('Orchestrator')).toBeInTheDocument();
   });
 
-  it('renders idle connections derived from agents when no active connections exist', () => {
+  it('does not render connection lines (removed in visual overhaul)', () => {
     const { container } = render(<OfficeCanvas officeState={makeOfficeState()} />);
 
-    // Idle connections are now derived from the agents list (one per agent)
-    const svg = container.querySelector('svg');
-    expect(svg).not.toBeNull();
-
-    const lines = svg!.querySelectorAll('line');
-    expect(lines.length).toBe(5);
+    // Connection lines have been removed — characters walk instead.
+    // Verify no SVG connection overlay with <line> elements between orchestrator and agents.
+    // The first SVG in the DOM should be from a desk/character, not a connection overlay.
+    const svgs = container.querySelectorAll('svg[viewBox="0 0 100 100"]');
+    expect(svgs.length).toBe(0);
   });
 
-  it('renders empty office with no connections when no agents exist', () => {
-    const { container } = render(
+  it('renders empty office when no agents exist', () => {
+    render(
       <OfficeCanvas officeState={makeOfficeState({ agents: [] })} />,
     );
 
-    const svg = container.querySelector('svg');
-    expect(svg).not.toBeNull();
-
-    // No agents means no idle connections
-    const lines = svg!.querySelectorAll('line');
-    expect(lines.length).toBe(0);
+    // Orchestrator hub should still be visible
+    expect(screen.getByText('Orchestrator')).toBeInTheDocument();
   });
 
-  it('renders explicit connections instead of defaults when connections are provided', () => {
-    const activeConnections: AgentConnection[] = [
-      { from: 'orchestrator', to: 'developer', label: 'plan -> develop', active: true, dataFlow: 'handoff' },
-      { from: 'developer', to: 'tester', label: 'develop -> test', active: false, dataFlow: 'handoff' },
-    ];
+  it('opens agent popup when clicking a desk workstation', async () => {
+    const user = userEvent.setup();
+    const agentOutputMap = new Map<string, string[]>();
+    agentOutputMap.set('developer', ['Building feature...', 'Running tests...']);
 
-    const { container } = render(
-      <OfficeCanvas officeState={makeOfficeState({ connections: activeConnections })} />,
+    render(
+      <OfficeCanvas
+        officeState={makeOfficeState()}
+        agentOutputMap={agentOutputMap}
+      />,
     );
 
-    const svg = container.querySelector('svg');
-    // Each active connection renders 3 lines (glow + cable + pulse), each idle renders 1
-    // 1 active connection (3 lines) + 1 idle connection (1 line) = 4 lines total
-    const lines = svg!.querySelectorAll('line');
-    expect(lines.length).toBe(4);
+    // Click on the Developer text in the desk (first match)
+    const devLabels = screen.getAllByText('Developer');
+    await user.click(devLabels[0]);
+
+    // Popup should show agent details
+    expect(screen.getByText('Current Task')).toBeInTheDocument();
+    expect(screen.getByLabelText('Close popup')).toBeInTheDocument();
   });
 
   it('shows "Ready" badge on orchestrator when idle', () => {
