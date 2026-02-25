@@ -59,19 +59,27 @@ async def spawn_agent(
     # Determine agent color based on role
     role_colors = {
         "developer": "#3b82f6",
+        "developer-2": "#06b6d4",
         "tester": "#22c55e",
         "security-reviewer": "#f97316",
         "devsecops": "#f97316",
         "documentation": "#8b5cf6",
         "business-dev": "#a855f7",
+        "frontend-dev": "#ec4899",
+        "backend-dev": "#8b5cf6",
+        "devops": "#eab308",
     }
     role_icons = {
         "developer": "Code2",
+        "developer-2": "Code",
         "tester": "TestTube2",
         "security-reviewer": "Shield",
         "devsecops": "Shield",
         "documentation": "FileText",
         "business-dev": "TrendingUp",
+        "frontend-dev": "Palette",
+        "backend-dev": "Server",
+        "devops": "Container",
     }
 
     agent = {

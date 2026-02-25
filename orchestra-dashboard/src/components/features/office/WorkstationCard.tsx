@@ -184,6 +184,32 @@ export function DeskWorkstation({ agent, position, outputLines = [], filesWorkin
             <rect x="8" y="0" width="3" height="10" fill="#a855f7" opacity="0.6" />
           </g>
         )}
+        {agent.role === 'frontend-dev' && (
+          <g transform="translate(18, 54)" opacity="0.4">
+            {/* Paint palette */}
+            <ellipse cx="6" cy="6" rx="6" ry="5" fill="#ec4899" opacity="0.3" />
+            <circle cx="3" cy="4" r="1.2" fill="#ef4444" />
+            <circle cx="6" cy="3" r="1.2" fill="#3b82f6" />
+            <circle cx="9" cy="5" r="1.2" fill="#22c55e" />
+          </g>
+        )}
+        {agent.role === 'backend-dev' && (
+          <g transform="translate(18, 54)" opacity="0.4">
+            {/* Mini server rack */}
+            <rect x="0" y="0" width="12" height="12" rx="1" fill="#8b5cf6" opacity="0.3" />
+            <rect x="2" y="2" width="8" height="2" rx="0.5" fill="#8b5cf6" opacity="0.5" />
+            <rect x="2" y="5" width="8" height="2" rx="0.5" fill="#8b5cf6" opacity="0.5" />
+            <rect x="2" y="8" width="8" height="2" rx="0.5" fill="#8b5cf6" opacity="0.5" />
+          </g>
+        )}
+        {agent.role === 'devops' && (
+          <g transform="translate(18, 54)" opacity="0.4">
+            {/* Container boxes */}
+            <rect x="0" y="4" width="5" height="5" rx="0.5" fill="#eab308" opacity="0.4" />
+            <rect x="6" y="4" width="5" height="5" rx="0.5" fill="#eab308" opacity="0.5" />
+            <rect x="3" y="0" width="5" height="5" rx="0.5" fill="#eab308" opacity="0.6" />
+          </g>
+        )}
 
         {/* Agent name label */}
         <text

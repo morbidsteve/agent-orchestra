@@ -1,4 +1,4 @@
-import { Terminal, Code, FlaskConical, Shield, Briefcase, Bot, CheckCircle, XCircle } from 'lucide-react';
+import { Terminal, Code, FlaskConical, Shield, Briefcase, Bot, CheckCircle, XCircle, Palette, Server, Container } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../../lib/cn.ts';
 import { ConnectionLine } from './ConnectionLine.tsx';
@@ -16,6 +16,9 @@ const AGENT_COLORS: Record<string, string> = {
   'tester': '#22c55e',
   'devsecops': '#f97316',
   'business-dev': '#a855f7',
+  'frontend-dev': '#ec4899',
+  'backend-dev': '#8b5cf6',
+  'devops': '#eab308',
 };
 
 const MINI_ICONS: Record<string, LucideIcon> = {
@@ -24,6 +27,9 @@ const MINI_ICONS: Record<string, LucideIcon> = {
   tester: FlaskConical,
   devsecops: Shield,
   'business-dev': Briefcase,
+  'frontend-dev': Palette,
+  'backend-dev': Server,
+  'devops': Container,
 };
 
 // Short names for mini view
@@ -33,6 +39,9 @@ const SHORT_NAMES: Record<string, string> = {
   'tester': 'Test',
   'devsecops': 'Sec',
   'business-dev': 'Biz',
+  'frontend-dev': 'FE',
+  'backend-dev': 'BE',
+  'devops': 'Ops',
 };
 
 function MiniAgentNode({ agent }: { agent: AgentNode }) {

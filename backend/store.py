@@ -163,6 +163,42 @@ AGENT_DEFAULTS: list[dict[str, Any]] = [
         "color": "#a855f7",
         "icon": "Briefcase",
     },
+    {
+        "role": "frontend-dev",
+        "name": "Frontend Dev",
+        "description": (
+            "Frontend specialist handling React components, styling, "
+            "UI work, hooks, pages, and Tailwind configuration."
+        ),
+        "capabilities": ["React", "TypeScript", "Tailwind CSS", "UI/UX"],
+        "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+        "color": "#ec4899",
+        "icon": "Palette",
+    },
+    {
+        "role": "backend-dev",
+        "name": "Backend Dev",
+        "description": (
+            "Backend specialist handling API endpoints, services, "
+            "data models, and server-side logic."
+        ),
+        "capabilities": ["FastAPI", "Python", "Pydantic", "APIs"],
+        "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+        "color": "#8b5cf6",
+        "icon": "Server",
+    },
+    {
+        "role": "devops",
+        "name": "DevOps",
+        "description": (
+            "DevOps engineer handling Docker, CI/CD, deployment configuration, "
+            "and infrastructure."
+        ),
+        "capabilities": ["Docker", "CI/CD", "Infrastructure", "Deployment"],
+        "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+        "color": "#eab308",
+        "icon": "Container",
+    },
 ]
 
 
