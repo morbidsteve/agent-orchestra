@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException
 from backend import models, store
 from backend.config import settings
 from backend.models import CreateExecutionRequest
+from backend.services.dynamic_orchestrator import run_dynamic_execution
 from backend.services.orchestrator import run_execution
 
 router = APIRouter(prefix="/api/executions", tags=["executions"])
@@ -22,9 +23,25 @@ _execution_semaphore = asyncio.Semaphore(5)
 
 
 async def _limited_run(execution_id: str) -> None:
-    """Run an execution under the concurrency semaphore."""
+    """Run an execution under the concurrency semaphore.
+
+    Prefers the dynamic orchestrator (Claude CLI session with MCP tools).
+    Falls back to the static pipeline if the dynamic orchestrator fails.
+    """
     async with _execution_semaphore:
-        await run_execution(execution_id)
+        try:
+            await run_dynamic_execution(execution_id)
+        except Exception:
+            pass  # Fall through to status check below
+
+        # If the dynamic orchestrator didn't complete successfully
+        # (it catches its own exceptions internally), fall back to the fixed pipeline.
+        execution = store.executions.get(execution_id)
+        if execution and execution.get("status") != "completed":
+            # Reset execution state for a fresh pipeline run
+            execution["status"] = "queued"
+            execution["startedAt"] = None
+            await run_execution(execution_id)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Workflow → pipeline groups (each group runs in parallel)

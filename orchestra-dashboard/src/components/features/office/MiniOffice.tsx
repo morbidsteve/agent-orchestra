@@ -1,22 +1,13 @@
-import { Terminal, Code, FlaskConical, Shield, Briefcase, CheckCircle, XCircle } from 'lucide-react';
+import { Terminal, Code, FlaskConical, Shield, Briefcase, Bot, CheckCircle, XCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../../lib/cn.ts';
 import { ConnectionLine } from './ConnectionLine.tsx';
+import { getStablePosition } from '../../../lib/layoutEngine.ts';
 import type { OfficeState, AgentNode, AgentConnection } from '../../../lib/types.ts';
 
 interface MiniOfficeProps {
   officeState: OfficeState;
 }
-
-// Layout positions as percentages (same as OfficeCanvas)
-const AGENT_POSITIONS: Record<string, { x: number; y: number }> = {
-  'orchestrator': { x: 50, y: 50 },
-  'developer': { x: 25, y: 20 },
-  'developer-2': { x: 75, y: 20 },
-  'tester': { x: 20, y: 75 },
-  'devsecops': { x: 50, y: 80 },
-  'business-dev': { x: 80, y: 75 },
-};
 
 const AGENT_COLORS: Record<string, string> = {
   'orchestrator': '#3b82f6',
@@ -26,15 +17,6 @@ const AGENT_COLORS: Record<string, string> = {
   'devsecops': '#f97316',
   'business-dev': '#a855f7',
 };
-
-/** Default idle connections for mini view */
-const MINI_IDLE_CONNECTIONS: AgentConnection[] = [
-  { from: 'orchestrator', to: 'developer', label: '', active: false, dataFlow: 'handoff' },
-  { from: 'orchestrator', to: 'developer-2', label: '', active: false, dataFlow: 'handoff' },
-  { from: 'orchestrator', to: 'tester', label: '', active: false, dataFlow: 'handoff' },
-  { from: 'orchestrator', to: 'devsecops', label: '', active: false, dataFlow: 'handoff' },
-  { from: 'orchestrator', to: 'business-dev', label: '', active: false, dataFlow: 'handoff' },
-];
 
 const MINI_ICONS: Record<string, LucideIcon> = {
   developer: Terminal,
@@ -54,7 +36,7 @@ const SHORT_NAMES: Record<string, string> = {
 };
 
 function MiniAgentNode({ agent }: { agent: AgentNode }) {
-  const Icon = MINI_ICONS[agent.role] || Terminal;
+  const Icon = MINI_ICONS[agent.role] || Bot;
   const isWorking = agent.visualStatus === 'working';
   const isDone = agent.visualStatus === 'done';
   const isError = agent.visualStatus === 'error';
@@ -86,7 +68,7 @@ function MiniAgentNode({ agent }: { agent: AgentNode }) {
           </div>
         )}
       </div>
-      <span className="text-[8px] text-gray-400">{SHORT_NAMES[agent.role] || agent.name}</span>
+      <span className="text-[8px] text-gray-400">{SHORT_NAMES[agent.role] || agent.name.slice(0, 4)}</span>
     </div>
   );
 }
@@ -95,8 +77,24 @@ export function MiniOffice({ officeState }: MiniOfficeProps) {
   const { agents, connections, currentPhase, executionId } = officeState;
   const isActive = executionId !== null && currentPhase !== null;
 
-  // Show default idle connections when no WebSocket connections exist
-  const displayConnections = connections.length > 0 ? connections : MINI_IDLE_CONNECTIONS;
+  // Build dynamic position map
+  const positionMap = new Map<string, { x: number; y: number }>();
+  positionMap.set('orchestrator', { x: 50, y: 50 });
+  agents.forEach((agent, index) => {
+    const pos = getStablePosition(index);
+    positionMap.set(agent.role, { x: pos.x, y: pos.y });
+  });
+
+  // Dynamic idle connections
+  const idleConnections: AgentConnection[] = agents.map(a => ({
+    from: 'orchestrator',
+    to: a.role,
+    label: '',
+    active: false,
+    dataFlow: 'handoff' as const,
+  }));
+
+  const displayConnections = connections.length > 0 ? connections : idleConnections;
 
   return (
     <div className="relative h-48 w-full overflow-hidden rounded-lg border border-surface-600 bg-surface-900">
@@ -108,9 +106,10 @@ export function MiniOffice({ officeState }: MiniOfficeProps) {
         style={{ pointerEvents: 'none' }}
       >
         {displayConnections.map((conn) => {
-          const fromPos = AGENT_POSITIONS[conn.from] || AGENT_POSITIONS['orchestrator'];
-          const toPos = AGENT_POSITIONS[conn.to] || AGENT_POSITIONS['orchestrator'];
-          const color = AGENT_COLORS[conn.from] || '#6b7280';
+          const fromPos = positionMap.get(conn.from) || positionMap.get('orchestrator')!;
+          const toPos = positionMap.get(conn.to) || positionMap.get('orchestrator')!;
+          const fromAgent = agents.find(a => a.role === conn.from);
+          const color = fromAgent?.color || AGENT_COLORS[conn.from] || '#6b7280';
 
           return (
             <ConnectionLine
@@ -128,7 +127,7 @@ export function MiniOffice({ officeState }: MiniOfficeProps) {
 
       {/* Mini agent nodes */}
       {agents.map((agent) => {
-        const pos = AGENT_POSITIONS[agent.role];
+        const pos = positionMap.get(agent.role);
         if (!pos) return null;
 
         return (
@@ -149,8 +148,8 @@ export function MiniOffice({ officeState }: MiniOfficeProps) {
       <div
         className="absolute -translate-x-1/2 -translate-y-1/2"
         style={{
-          left: `${AGENT_POSITIONS['orchestrator'].x}%`,
-          top: `${AGENT_POSITIONS['orchestrator'].y}%`,
+          left: `${positionMap.get('orchestrator')!.x}%`,
+          top: `${positionMap.get('orchestrator')!.y}%`,
         }}
       >
         <div className="flex flex-col items-center gap-0.5">

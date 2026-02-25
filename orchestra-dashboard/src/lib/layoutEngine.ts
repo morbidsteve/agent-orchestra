@@ -26,9 +26,24 @@ export function calculateAgentPositions(count: number): AgentPosition[] {
     [42, 10, -90],  // Ring 2: outer ring
   ];
 
+  // Generate additional rings dynamically for large agent counts
+  if (count > 16) {
+    let radius = 42;
+    let capacity = 10;
+    let totalCapacity = 16; // ring 1 (6) + ring 2 (10)
+    while (totalCapacity < count) {
+      radius = Math.min(radius + 6, 48);
+      capacity = capacity + 4;
+      rings.push([radius, capacity, -90]);
+      totalCapacity += capacity;
+    }
+  }
+
   let placed = 0;
+  let ringIndex = 0;
   for (const [radius, maxInRing, startAngle] of rings) {
     if (placed >= count) break;
+    ringIndex++;
 
     const agentsInThisRing = Math.min(count - placed, maxInRing);
     const angleStep = 360 / Math.max(agentsInThisRing, 1);
@@ -39,7 +54,7 @@ export function calculateAgentPositions(count: number): AgentPosition[] {
       positions.push({
         x: centerX + radius * Math.cos(rad),
         y: centerY + radius * Math.sin(rad),
-        ring: positions.length < 6 ? 1 : 2,
+        ring: ringIndex,
       });
       placed++;
     }
@@ -50,9 +65,9 @@ export function calculateAgentPositions(count: number): AgentPosition[] {
 
 /**
  * Get a stable position for an agent by index.
- * Pre-calculates for up to 16 agents so positions never shift.
+ * Pre-calculates for up to 32 agents so positions never shift.
  */
-const MAX_PRECOMPUTED = 16;
+const MAX_PRECOMPUTED = 32;
 const precomputedPositions = calculateAgentPositions(MAX_PRECOMPUTED);
 
 export function getStablePosition(index: number): AgentPosition {

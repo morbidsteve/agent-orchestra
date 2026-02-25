@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   MessageSquare,
@@ -14,6 +15,7 @@ import { useConversationContext } from '../../context/ConversationContext.tsx';
 import { useConsoleWebSocket } from '../../hooks/useConsoleWebSocket.ts';
 import { useDynamicAgents } from '../../hooks/useDynamicAgents.ts';
 import { cn } from '../../lib/cn.ts';
+import { fetchSystemVersion } from '../../lib/api.ts';
 import { version } from '../../../package.json';
 
 const navItems = [
@@ -38,6 +40,22 @@ export function Sidebar() {
   const conversationId = conversation?.id ?? null;
   const { messages: wsMessages } = useConsoleWebSocket(conversationId);
   const { agents: dynamicAgents } = useDynamicAgents(wsMessages);
+
+  const [displayVersion, setDisplayVersion] = useState(`v${version}`);
+
+  useEffect(() => {
+    fetchSystemVersion()
+      .then((res) => {
+        if (res.current_tag) {
+          setDisplayVersion(res.current_tag.startsWith('v') ? res.current_tag : `v${res.current_tag}`);
+        } else {
+          setDisplayVersion(res.current_commit.slice(0, 7));
+        }
+      })
+      .catch(() => {
+        // Keep the fallback package.json version
+      });
+  }, []);
 
   const runningDynamic = dynamicAgents.filter(a => a.status === 'running');
   const hasDynamicAgents = dynamicAgents.length > 0;
@@ -170,7 +188,7 @@ export function Sidebar() {
             isLive ? 'bg-green-400' : 'bg-gray-500'
           )} />
           <span className="text-xs text-gray-500">
-            {isLive ? 'Live' : 'Mock Data'} · v{version}
+            {isLive ? 'Live' : 'Mock Data'} · {displayVersion}
           </span>
         </div>
       </div>

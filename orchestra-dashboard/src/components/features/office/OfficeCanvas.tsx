@@ -116,7 +116,7 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
         {displayConnections.map((conn) => {
           const fromPos = conn.from === 'orchestrator' ? CENTER : (agentPositions.get(conn.from) || CENTER);
           const toPos = conn.to === 'orchestrator' ? CENTER : (agentPositions.get(conn.to) || CENTER);
-          const color = AGENT_COLORS[conn.from] || agents.find(a => a.role === conn.from)?.color || '#6b7280';
+          const color = agents.find(a => a.role === conn.from)?.color || AGENT_COLORS[conn.from] || '#6b7280';
 
           return (
             <ConnectionLine

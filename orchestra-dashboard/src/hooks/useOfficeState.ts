@@ -39,6 +39,16 @@ const ROLE_ICONS: Record<string, string> = {
   'business-dev': 'Briefcase',
 };
 
+/** Generate a stable HSL color from any role string. */
+function hashColor(role: string): string {
+  let hash = 0;
+  for (let i = 0; i < role.length; i++) {
+    hash = role.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = ((hash % 360) + 360) % 360;
+  return `hsl(${hue}, 70%, 55%)`;
+}
+
 /** Derive a human-readable name from a role slug (e.g. "business-dev" -> "Business Dev"). */
 function roleToName(role: string): string {
   return role.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -53,7 +63,7 @@ function createAgentNode(
   return {
     role,
     name: roleToName(role),
-    color: ROLE_COLORS[role] || '#6b7280',
+    color: ROLE_COLORS[role] || hashColor(role),
     icon: ROLE_ICONS[role] || 'Bot',
     visualStatus,
     currentTask,
