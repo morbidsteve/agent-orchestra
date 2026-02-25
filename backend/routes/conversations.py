@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import re
+import subprocess
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -20,6 +22,8 @@ from backend.services.dynamic_orchestrator import run_dynamic_execution
 from backend.services.orchestrator import run_execution
 
 router = APIRouter(prefix="/api", tags=["conversations"])
+
+logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Request models
@@ -201,6 +205,7 @@ def _create_execution_record(
     workflow: str,
     task: str,
     model: str = "sonnet",
+    project_source: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Create an execution record in the store (mirrors routes/executions.py logic)."""
     exec_id = store.next_execution_id()
@@ -220,10 +225,56 @@ def _create_execution_record(
                 "output": [],
             })
 
-    # Create an isolated project directory so agents don't work inside
-    # the Orchestra codebase itself.
+    # Resolve project directory from project source
     project_dir = os.path.join(settings.PROJECTS_DIR, exec_id)
-    os.makedirs(project_dir, exist_ok=True)
+    source_record: dict[str, str] | None = None
+
+    if project_source and project_source.get("type") == "git":
+        git_url = project_source.get("path", "")
+        if git_url and git_url.startswith("https://"):
+            # Extract repo name for a friendlier directory name
+            repo_name = git_url.rstrip("/").split("/")[-1].removesuffix(".git")
+            clone_dir = os.path.join(settings.PROJECTS_DIR, f"{exec_id}_{repo_name}")
+            try:
+                result = subprocess.run(
+                    ["git", "clone", "--depth", "1",
+                     "--config", "core.hooksPath=/dev/null",
+                     git_url, clone_dir],
+                    capture_output=True, timeout=120,
+                )
+                if result.returncode == 0:
+                    project_dir = clone_dir
+                    source_record = {"type": "git", "path": git_url}
+                else:
+                    logger.warning("git clone failed for %s: %s", git_url, result.stderr.decode(errors="replace"))
+                    os.makedirs(project_dir, exist_ok=True)
+            except (subprocess.TimeoutExpired, OSError) as exc:
+                logger.warning("git clone error for %s: %s", git_url, exc)
+                os.makedirs(project_dir, exist_ok=True)
+        else:
+            logger.warning("Rejected non-https git URL: %s", git_url)
+            os.makedirs(project_dir, exist_ok=True)
+
+    elif project_source and project_source.get("type") == "local":
+        local_path = project_source.get("path", "")
+        real_path = os.path.realpath(local_path) if local_path else ""
+        allowed_roots = [
+            os.path.realpath("/workspace"),
+            os.path.realpath(settings.PROJECTS_DIR),
+        ]
+        if real_path and os.path.isdir(real_path) and any(
+            real_path == root or real_path.startswith(root + os.sep)
+            for root in allowed_roots
+        ):
+            project_dir = real_path
+            source_record = {"type": "local", "path": real_path}
+        else:
+            logger.warning("Rejected local path (not found or outside allowed roots): %s", local_path)
+            os.makedirs(project_dir, exist_ok=True)
+
+    else:
+        # type == "new" or None — isolated empty directory (current behavior)
+        os.makedirs(project_dir, exist_ok=True)
 
     execution: dict[str, Any] = {
         "id": exec_id,
@@ -232,7 +283,7 @@ def _create_execution_record(
         "status": "queued",
         "model": model,
         "target": "",
-        "projectSource": None,
+        "projectSource": source_record,
         "resolvedProjectPath": project_dir,
         "createdAt": now,
         "startedAt": None,
@@ -250,6 +301,7 @@ async def _handle_user_message(
     conversation: dict[str, Any],
     text: str,
     model: str = "sonnet",
+    project_source: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Process a user message and generate orchestra response.
 
@@ -258,7 +310,7 @@ async def _handle_user_message(
     Returns the orchestra response message.
     """
     workflow = _detect_workflow(text)
-    execution = _create_execution_record(workflow, text, model)
+    execution = _create_execution_record(workflow, text, model, project_source)
     exec_id = execution["id"]
 
     # Link execution to conversation
@@ -354,8 +406,15 @@ async def create_conversation(req: ConversationMessageRequest) -> dict:
 
     store.conversations[conv_id] = conversation
 
+    # Build project source dict from request
+    ps = (
+        {"type": req.project_source.type, "path": req.project_source.path}
+        if req.project_source
+        else None
+    )
+
     # Generate orchestra response (creates execution, adds messages)
-    await _handle_user_message(conversation, req.text, req.model)
+    await _handle_user_message(conversation, req.text, req.model, ps)
 
     conversation["updatedAt"] = datetime.now(timezone.utc).isoformat()
     return conversation
