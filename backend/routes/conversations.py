@@ -96,16 +96,6 @@ _SECURITY_AUDIT_PATTERNS = [
     re.compile(r"\bfind\s+vulnerabilit", re.IGNORECASE),
 ]
 
-_DEV_SECURITY_PATTERNS = [
-    re.compile(r"\bauth", re.IGNORECASE),
-    re.compile(r"\bpassword", re.IGNORECASE),
-    re.compile(r"\bcredential", re.IGNORECASE),
-    re.compile(r"\btokens?\b", re.IGNORECASE),
-    re.compile(r"\bencrypt", re.IGNORECASE),
-    re.compile(r"\bapi\s*key", re.IGNORECASE),
-    re.compile(r"\blogin\b", re.IGNORECASE),
-]
-
 _CODE_REVIEW_PATTERNS = [
     re.compile(r"\breview\b", re.IGNORECASE),
     re.compile(r"\baudit\s+code\b", re.IGNORECASE),
@@ -121,12 +111,6 @@ _DEV_ONLY_PATTERNS = [
     re.compile(r"\bchange\s+color\b", re.IGNORECASE),
 ]
 
-_FULL_PIPELINE_PATTERNS = [
-    re.compile(r"\bthorough\b", re.IGNORECASE),
-    re.compile(r"\bcomprehensive\b", re.IGNORECASE),
-    re.compile(r"\bfull\s+review\b", re.IGNORECASE),
-    re.compile(r"\bproduction\s+ready\b", re.IGNORECASE),
-]
 
 _MAX_CONSOLE_CONNECTIONS = 10
 
@@ -162,24 +146,15 @@ def _make_message(
 
 def _detect_workflow(text: str) -> str:
     """Detect workflow type from user message text."""
-    # Feature evaluation (existing patterns)
+    # Feature evaluation
     for pattern in _FEATURE_EVAL_PATTERNS:
         if pattern.search(text):
             return "feature-eval"
 
-    # Security audit — check before dev-security since it's more specific
+    # Security audit — check before code-review since it's more specific
     for pattern in _SECURITY_AUDIT_PATTERNS:
         if pattern.search(text):
             return "security-audit"
-
-    # Explicit full pipeline triggers
-    for pattern in _FULL_PIPELINE_PATTERNS:
-        if pattern.search(text):
-            return "full-pipeline"
-
-    # Very long prompts suggest complex tasks → full pipeline
-    if len(text) > 300:
-        return "full-pipeline"
 
     # Code review
     for pattern in _CODE_REVIEW_PATTERNS:
@@ -192,13 +167,9 @@ def _detect_workflow(text: str) -> str:
             if pattern.search(text):
                 return "dev-only"
 
-    # Security-sensitive development
-    for pattern in _DEV_SECURITY_PATTERNS:
-        if pattern.search(text):
-            return "dev-security"
-
-    # Default: dev + test (most tasks need dev + test, not 4 agents)
-    return "dev-test"
+    # Default: full pipeline (the dynamic orchestrator decides strategy anyway;
+    # the static fallback should default to the most thorough pipeline)
+    return "full-pipeline"
 
 
 def _create_execution_record(
@@ -347,10 +318,12 @@ async def _handle_user_message(
         except Exception:
             pass  # Fall through to status check below
 
-        # If the dynamic orchestrator didn't complete successfully (it catches
-        # its own exceptions internally), fall back to the fixed pipeline.
+        # Only fall back to static pipeline if no agents were spawned
+        # (meaning the dynamic orchestrator couldn't start, e.g., CLI not found).
+        # If the dynamic orchestrator ran but failed, don't re-run from scratch.
         execution = store.executions.get(eid)
-        if execution and execution.get("status") != "completed":
+        has_dynamic_agents = bool(store.dynamic_agents.get(eid))
+        if execution and execution.get("status") != "completed" and not has_dynamic_agents:
             # Reset execution state for a fresh pipeline run
             execution["status"] = "queued"
             execution["startedAt"] = None
@@ -360,11 +333,8 @@ async def _handle_user_message(
                 step["output"] = []
                 step["startedAt"] = None
                 step["completedAt"] = None
-            # Only clear dynamic state if no agents were actually spawned
-            has_dynamic_agents = bool(store.dynamic_agents.get(eid))
-            if not has_dynamic_agents:
-                store.dynamic_agents.pop(eid, None)
-                store.file_activities.pop(eid, None)
+            store.dynamic_agents.pop(eid, None)
+            store.file_activities.pop(eid, None)
             store.execution_messages.pop(eid, None)
             for conv in store.conversations.values():
                 if conv.get("activeExecutionId") == eid:

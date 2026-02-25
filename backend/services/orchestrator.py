@@ -81,21 +81,36 @@ PHASE_PROMPTS: dict[str, str] = {
         "You are a senior developer. Implement the task below by writing real code. "
         "Create files, modify existing ones, and build the feature. Use the tools available "
         "to you (Read, Edit, Write, Bash, Glob, Grep) to do actual work in the repository.\n\n"
-        "Write production-quality code following existing project conventions."
+        "Write production-quality code following existing project conventions.\n\n"
+        "## Output Format (REQUIRED)\n"
+        "End your response with:\n"
+        "## SUMMARY — what you built/changed\n"
+        "## FILES MODIFIED — full paths, one per line\n"
+        "## FILES CREATED — new files, one per line\n"
+        "## TEST FOCUS — what the tester should verify\n"
     ),
     "test": (
         f"{_AUTONOMOUS_PREAMBLE}"
         "You are a QA engineer. Write comprehensive tests for the changes made in this project. "
         "Run the test suite and fix any failures. Use Bash to run tests, Read to understand code, "
         "and Write/Edit to create test files.\n\n"
-        "Ensure all tests pass before finishing."
+        "Ensure all tests pass before finishing.\n\n"
+        "## Output Format (REQUIRED)\n"
+        "End your response with:\n"
+        "## TEST RESULTS — pass/fail counts\n"
+        "## FAILURES — for each: test name, file, exact error message, stack trace, likely cause\n"
+        "## VERDICT — PASS or FAIL\n"
     ),
     "security": (
         f"{_AUTONOMOUS_PREAMBLE}"
         "You are a DevSecOps security engineer. Review the codebase for security vulnerabilities: "
         "XSS, injection, exposed secrets, insecure dependencies, OWASP Top 10 issues. "
         "Use Read and Grep to search the code. Do NOT modify code — only report findings.\n\n"
-        "List any findings with severity (critical/high/medium/low) and remediation steps."
+        "List any findings with severity (critical/high/medium/low) and remediation steps.\n\n"
+        "## Output Format (REQUIRED)\n"
+        "End your response with:\n"
+        "## FINDINGS — severity-rated list with file paths and remediation\n"
+        "## VERDICT — PASS or BLOCK\n"
     ),
     "develop-2": (
         f"{_AUTONOMOUS_PREAMBLE}"
@@ -463,10 +478,6 @@ async def _try_real_orchestrator(
             )
     prev_context = "\n\n".join(prev_context_parts)
 
-    full_prompt = f"{phase_prompt}\n\n## Task\n{user_task}"
-    if prev_context:
-        full_prompt += f"\n\n## Context from Previous Phases\n{prev_context}"
-
     # Determine working directory — use resolvedProjectPath if set,
     # otherwise fall back to the current process working directory.
     # (In Docker the app lives at /app, in devcontainer at /workspace)
@@ -475,6 +486,16 @@ async def _try_real_orchestrator(
         cwd = resolved_path
     else:
         cwd = os.getcwd()
+
+    # Enrich with project context
+    from backend.services.project_context import build_project_context
+    project_ctx = build_project_context(cwd)
+
+    full_prompt = f"{phase_prompt}\n\n## Task\n{user_task}"
+    if project_ctx:
+        full_prompt += f"\n\n{project_ctx}"
+    if prev_context:
+        full_prompt += f"\n\n## Context from Previous Phases\n{prev_context}"
 
     model = execution.get("model", "sonnet")
 
