@@ -82,9 +82,11 @@ WORKFLOW_PIPELINES: dict[str, list[list[tuple[str, str]]]] = {
 
 
 @router.get("/")
-async def list_executions() -> list[dict]:
-    """Return all executions, sorted by createdAt descending."""
+async def list_executions(conversation_id: str | None = None) -> list[dict]:
+    """Return executions, optionally filtered by conversation_id."""
     items = list(store.executions.values())
+    if conversation_id is not None:
+        items = [e for e in items if e.get("conversationId") == conversation_id]
     items.sort(key=lambda e: e.get("createdAt", ""), reverse=True)
     return items
 
@@ -160,6 +162,7 @@ async def create_execution(req: CreateExecutionRequest) -> dict:
         "status": "queued",
         "model": req.model,
         "target": req.target,
+        "conversationId": None,
         "projectSource": project_source_dict,
         "resolvedProjectPath": resolved_path,
         "createdAt": now,

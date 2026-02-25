@@ -128,7 +128,7 @@ function SessionViewInner({
         />
       );
     case 'dashboard':
-      return <DashboardPage />;
+      return <DashboardPage conversationId={conversationId} />;
     default:
       return null;
   }

@@ -206,6 +206,7 @@ def _create_execution_record(
     task: str,
     model: str = "sonnet",
     project_source: dict[str, str] | None = None,
+    conversation_id: str | None = None,
 ) -> dict[str, Any]:
     """Create an execution record in the store (mirrors routes/executions.py logic)."""
     exec_id = store.next_execution_id()
@@ -283,6 +284,7 @@ def _create_execution_record(
         "status": "queued",
         "model": model,
         "target": "",
+        "conversationId": conversation_id,
         "projectSource": source_record,
         "resolvedProjectPath": project_dir,
         "createdAt": now,
@@ -310,7 +312,7 @@ async def _handle_user_message(
     Returns the orchestra response message.
     """
     workflow = _detect_workflow(text)
-    execution = _create_execution_record(workflow, text, model, project_source)
+    execution = _create_execution_record(workflow, text, model, project_source, conversation_id=conversation["id"])
     exec_id = execution["id"]
 
     # Link execution to conversation

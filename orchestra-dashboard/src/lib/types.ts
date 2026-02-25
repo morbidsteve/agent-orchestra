@@ -51,6 +51,7 @@ export interface Execution {
   pipeline: PipelineStep[];
   activities: AgentActivity[];
   findings: string[]; // finding IDs
+  conversationId?: string | null;
 }
 
 export interface AgentInfo {

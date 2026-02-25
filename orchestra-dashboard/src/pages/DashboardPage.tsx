@@ -3,8 +3,12 @@ import { useExecutions } from '../hooks/useExecutions.ts';
 import { useAgents } from '../hooks/useAgents.ts';
 import { StatsCard, ActiveExecutions, RecentResults, AgentStatusGrid } from '../components/features/dashboard/index.ts';
 
-export function DashboardPage() {
-  const { active, completed, stats } = useExecutions();
+interface DashboardPageProps {
+  conversationId?: string | null;
+}
+
+export function DashboardPage({ conversationId }: DashboardPageProps) {
+  const { active, completed, stats } = useExecutions(conversationId);
   const { agents, busyCount } = useAgents();
 
   return (
