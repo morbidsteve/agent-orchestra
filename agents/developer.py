@@ -44,6 +44,14 @@ When you complete work, provide:
 - Don't add dependencies without justification
 - Don't skip tests "for now"
 - Don't leave TODO comments — either do it or flag it in your summary
+
+## Output Format (REQUIRED)
+When you complete your work, end your response with these sections:
+## SUMMARY — what you built/changed
+## FILES MODIFIED — full paths, one per line
+## FILES CREATED — new files, one per line
+## ISSUES — problems or concerns
+## TEST FOCUS — what the tester should verify
 """,
     "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
     "model": "sonnet",
@@ -83,6 +91,14 @@ When complete, report:
 - Files modified
 - Any dependencies on other agents' work
 - Blockers or concerns
+
+## Output Format (REQUIRED)
+When you complete your work, end your response with these sections:
+## SUMMARY — what you built/changed
+## FILES MODIFIED — full paths, one per line
+## FILES CREATED — new files, one per line
+## ISSUES — problems or concerns
+## TEST FOCUS — what the tester should verify
 """,
     "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
     "model": "sonnet",
