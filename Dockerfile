@@ -12,7 +12,7 @@ RUN npm ci
 FROM python:3.13-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl make nodejs npm gpg \
+    git curl make nodejs npm gpg procps \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install GitHub CLI (gh)
@@ -38,7 +38,17 @@ RUN pip install --no-cache-dir -r requirements.txt 2>/dev/null; \
 RUN useradd -m -s /bin/bash orchestra
 
 # Copy full source
+ARG REPO_URL=https://github.com/morbidsteve/agent-orchestra.git
 COPY --chown=orchestra:orchestra . .
+
+# When built via `docker build <git-url>`, Docker strips .git from the context.
+# Initialize a repo and fetch tags so version switching works.
+RUN if [ ! -d .git ]; then \
+      git config --global --add safe.directory /app && \
+      git init && \
+      git remote add origin "${REPO_URL}" && \
+      git fetch --tags origin master 2>/dev/null || true; \
+    fi
 
 # Copy pre-installed node_modules from frontend-deps stage
 COPY --from=frontend-deps --chown=orchestra:orchestra /app/orchestra-dashboard/node_modules orchestra-dashboard/node_modules

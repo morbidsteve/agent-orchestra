@@ -188,7 +188,7 @@ async def system_update(body: UpdateRequest | None = None) -> JSONResponse:
             )
 
         # 1c. Checkout the tag (detached HEAD)
-        rc, err = await _run(["git", "-C", str(APP_DIR), "checkout", "--", tag])
+        rc, err = await _run(["git", "-C", str(APP_DIR), "checkout", f"tags/{tag}"])
         if rc != 0:
             return JSONResponse(
                 {"status": "error", "message": f"git checkout {tag} failed: {err}"},
