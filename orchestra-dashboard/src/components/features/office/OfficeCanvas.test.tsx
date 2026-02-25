@@ -25,11 +25,12 @@ function makeOfficeState(overrides?: Partial<OfficeState>): OfficeState {
 describe('OfficeCanvas', () => {
   it('renders all agent desks', () => {
     render(<OfficeCanvas officeState={makeOfficeState()} />);
-    expect(screen.getByText('Developer')).toBeInTheDocument();
-    expect(screen.getByText('Developer 2')).toBeInTheDocument();
-    expect(screen.getByText('Tester')).toBeInTheDocument();
-    expect(screen.getByText('DevSecOps')).toBeInTheDocument();
-    expect(screen.getByText('Business Dev')).toBeInTheDocument();
+    // Each agent name appears twice: once in DeskWorkstation, once in AgentCharacter name tag
+    expect(screen.getAllByText('Developer').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Developer 2').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Tester').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('DevSecOps').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Business Dev').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders the orchestrator hub', () => {

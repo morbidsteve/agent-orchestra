@@ -1,6 +1,7 @@
 import { DeskWorkstation } from './WorkstationCard.tsx';
 import { CommandCenter } from './OrchestratorDesk.tsx';
 import { ConnectionLine } from './ConnectionLine.tsx';
+import { AgentCharacter } from './AgentCharacter.tsx';
 import { getStablePosition } from '../../../lib/layoutEngine.ts';
 import type { OfficeState, AgentConnection } from '../../../lib/types.ts';
 
@@ -37,6 +38,21 @@ const PLANTS: { x: string; y: string }[] = [
 ];
 
 const CENTER = { x: 50, y: 50 };
+
+/** Compute idle cluster positions in a small arc below the orchestrator */
+function getIdlePosition(index: number, total: number): { x: number; y: number } {
+  const centerX = 50;
+  const centerY = 56; // slightly below center (orchestrator is at 50,50)
+  const radius = 8;   // 8% radius arc
+  const startAngle = -180; // arc from left to right (bottom semicircle)
+  const angleStep = total > 1 ? 160 / (total - 1) : 0;
+  const angle = startAngle + 10 + index * angleStep; // 10deg offset from edge
+  const rad = (angle * Math.PI) / 180;
+  return {
+    x: centerX + radius * Math.cos(rad),
+    y: centerY + radius * Math.sin(rad),
+  };
+}
 
 export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: OfficeCanvasProps) {
   const { agents, connections, currentPhase, executionId } = officeState;
@@ -314,6 +330,23 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
         />
       </div>
 
+      {/* Walking character layer */}
+      <div className="absolute inset-0" style={{ zIndex: 4, pointerEvents: 'none' }}>
+        {agents.map((agent, index) => {
+          const deskPos = agentPositions.get(agent.role);
+          if (!deskPos) return null;
+          const idlePos = getIdlePosition(index, agents.length);
+          return (
+            <AgentCharacter
+              key={agent.role}
+              agent={agent}
+              idlePosition={idlePos}
+              deskPosition={{ x: deskPos.x, y: deskPos.y - 4 }}
+            />
+          );
+        })}
+      </div>
+
       {/* CSS animations */}
       <style>{`
         @keyframes fadeScaleIn {
@@ -325,6 +358,45 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
             opacity: 1;
             transform: scale(1);
           }
+        }
+        @keyframes agentBob {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-3px); }
+        }
+        @keyframes legSwingForward {
+          0%, 100% { transform: rotate(0deg); }
+          50% { transform: rotate(25deg); }
+        }
+        @keyframes legSwingBack {
+          0%, 100% { transform: rotate(0deg); }
+          50% { transform: rotate(-25deg); }
+        }
+        @keyframes armSwingForward {
+          0%, 100% { transform: rotate(0deg); }
+          50% { transform: rotate(20deg); }
+        }
+        @keyframes armSwingBack {
+          0%, 100% { transform: rotate(0deg); }
+          50% { transform: rotate(-20deg); }
+        }
+        @keyframes typingBob {
+          0%, 100% { transform: rotate(0deg); }
+          50% { transform: rotate(3deg); }
+        }
+        @keyframes idleSway {
+          0%, 100% { transform: translate(0, 0) rotate(0deg); }
+          50% { transform: translate(1px, 0) rotate(0.5deg); }
+        }
+        @keyframes celebrateJump {
+          0%, 100% { transform: translateY(0); }
+          30% { transform: translateY(-10px); }
+          50% { transform: translateY(-6px); }
+          70% { transform: translateY(-8px); }
+        }
+        @keyframes celebrateArms {
+          0%, 100% { transform: rotate(0deg); }
+          30% { transform: rotate(-70deg); }
+          70% { transform: rotate(-70deg); }
         }
       `}</style>
     </div>

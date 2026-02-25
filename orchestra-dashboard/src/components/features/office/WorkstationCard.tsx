@@ -91,21 +91,8 @@ export function DeskWorkstation({ agent, position, outputLines = [], filesWorkin
         transform: 'translate(-50%, -50%)',
       }}
     >
-      {/* Person silhouette sitting at desk */}
-      <div className="flex justify-center mb-1">
-        <svg width="32" height="28" viewBox="0 0 32 28" fill="none">
-          {/* Head */}
-          <circle cx="16" cy="8" r="5" fill={agent.color} opacity={isIdle ? 0.2 : 0.5} />
-          {/* Shoulders/torso */}
-          <path d="M6 28 C6 18 10 14 16 14 C22 14 26 18 26 28" fill={agent.color} opacity={isIdle ? 0.15 : 0.35} />
-          {/* Glow when working */}
-          {isWorking && (
-            <circle cx="16" cy="8" r="7" fill="none" stroke={agent.color} strokeWidth="1" opacity="0.3">
-              <animate attributeName="opacity" values="0.1;0.4;0.1" dur="2s" repeatCount="indefinite" />
-            </circle>
-          )}
-        </svg>
-      </div>
+      {/* Spacer above desk (character walks here separately) */}
+      <div className="h-2" />
 
       {/* Desk surface */}
       <div
