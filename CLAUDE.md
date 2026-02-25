@@ -95,7 +95,8 @@ the final step of every successful pipeline. The workflow is:
 5. Merge the PR via `gh pr merge --merge` (use merge commit, not squash or rebase)
 6. **Delete the branch** after merge — both remote (`gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/{branch}`) and local (`git branch -d {branch}`)
 7. `git checkout master && git pull` to return to a clean state
-8. Report the merged PR URL and new version to the user
+8. **Tag the release** on master: `git tag v<new-version>` (e.g., `git tag v0.12.0`) and push the tag: `git push origin v<new-version>`. The tag must match the version in `package.json`. Tags power the version switcher in Settings and the version display in the sidebar.
+9. Report the merged PR URL and new version to the user
 
 If the merge fails (e.g., branch protection, merge conflicts), report the PR URL and the
 error — do not silently retry or force-push.

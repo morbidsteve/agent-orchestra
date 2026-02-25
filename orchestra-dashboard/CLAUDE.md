@@ -162,7 +162,11 @@ patch for fixes (e.g., `0.3.1` â†’ `0.3.2`), minor for features (e.g., `0.3.2` â
 The version displays in the sidebar so the user can verify they're on the latest build.
 
 Use `gh pr create` and `gh pr merge --merge`. **After merge, delete the branch** (remote and
-local) and return to `master`. If the merge fails, report the PR URL and error to the user.
+local) and return to `master`. **Then tag the release** on master: `git tag v<version>` and
+`git push origin v<version>`. The tag must match the version in `package.json`. Tags power
+the version switcher in Settings and the live version display in the sidebar.
+
+If the merge fails, report the PR URL and error to the user.
 
 ## Common Commands
 
