@@ -73,6 +73,11 @@ WORKFLOW_PIPELINES: dict[str, list[list[tuple[str, str]]]] = {
         [("test", "tester"), ("security", "devsecops")],
         [("report", "developer")],
     ],
+    "turbo-pipeline": [
+        [("develop", "developer"), ("develop-2", "developer-2")],
+        [("test", "tester"), ("security", "devsecops")],
+        [("report", "developer")],
+    ],
 }
 
 

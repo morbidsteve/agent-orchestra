@@ -10,9 +10,30 @@ import hmac
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Header, HTTPException
+from pydantic import BaseModel, Field
 
 from backend import models, store
 from backend.services.dynamic_orchestrator import launch_agent_subprocess
+
+
+# ── Internal-only request models (not exposed to frontend) ──────────────────
+
+
+class _SpawnAgentSpec(BaseModel):
+    role: str = Field(max_length=100)
+    name: str = Field(max_length=200)
+    task: str = Field(max_length=50000)
+    model: str | None = None
+
+
+class _SpawnAgentsBatchRequest(BaseModel):
+    execution_id: str = Field(max_length=64)
+    agents: list[_SpawnAgentSpec] = Field(max_length=20)
+
+
+class _WaitForAgentsRequest(BaseModel):
+    agent_ids: list[str] = Field(max_length=50)
+    timeout: int = Field(default=900, ge=1, le=900)
 
 router = APIRouter(prefix="/api/internal", tags=["internal-dynamic"])
 
@@ -152,6 +173,74 @@ async def get_agent_result(
     return {
         "agent_id": agent_id,
         "status": agent["status"],
-        "output": "\n".join(agent["output"][-500:]) if agent["status"] in ("completed", "failed") else "",
+        "output": "\n".join(agent["output"][-500:]),
         "filesModified": agent.get("filesModified", []),
     }
+
+
+@router.post("/spawn-agents")
+async def spawn_agents_batch(
+    req: _SpawnAgentsBatchRequest,
+    x_orchestra_token: str | None = Header(None),
+):
+    """Spawn multiple agents in a single batch call."""
+    _verify_token(x_orchestra_token)
+
+    results = []
+
+    for agent_spec in req.agents:
+        # Reuse existing spawn logic
+        spawn_req = models.SpawnAgentRequest(
+            execution_id=req.execution_id,
+            role=agent_spec.role,
+            name=agent_spec.name,
+            task=agent_spec.task,
+            wait=False,
+            model=agent_spec.model,
+        )
+        result = await spawn_agent(spawn_req, x_orchestra_token)
+        results.append(result)
+
+    return {"agents": results}
+
+
+@router.post("/agents/wait")
+async def wait_for_agents(
+    req: _WaitForAgentsRequest,
+    x_orchestra_token: str | None = Header(None),
+):
+    """Wait for multiple agents to complete. Uses asyncio.gather on result_events."""
+    _verify_token(x_orchestra_token)
+
+    agent_ids = req.agent_ids
+    timeout = req.timeout
+
+    # Find all agents
+    agents_to_wait = []
+    for exec_id, agents in store.dynamic_agents.items():
+        for agent_id in agent_ids:
+            if agent_id in agents:
+                agents_to_wait.append((agent_id, agents[agent_id]))
+
+    if not agents_to_wait:
+        return {"results": []}
+
+    # Wait for all agents using asyncio.gather on their result_events
+    async def _wait_one(agent_id: str, agent: dict) -> dict:
+        if agent["status"] not in ("completed", "failed"):
+            try:
+                await asyncio.wait_for(agent["result_event"].wait(), timeout=timeout)
+            except asyncio.TimeoutError:
+                pass
+        return {
+            "agent_id": agent_id,
+            "status": agent["status"],
+            "output": "\n".join(agent["output"][-500:]),
+            "filesModified": agent.get("filesModified", []),
+        }
+
+    results = await asyncio.gather(
+        *[_wait_one(aid, agent) for aid, agent in agents_to_wait]
+    )
+
+    return {"results": list(results)}

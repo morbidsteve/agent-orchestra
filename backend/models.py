@@ -20,7 +20,8 @@ FindingSeverity = Literal["critical", "high", "medium", "low", "info"]
 FindingType = Literal["security", "quality", "performance", "compliance"]
 FindingStatus = Literal["open", "resolved", "dismissed"]
 WorkflowType = Literal[
-    "full-pipeline", "code-review", "security-audit", "feature-eval", "quick-fix"
+    "full-pipeline", "code-review", "security-audit", "feature-eval", "quick-fix",
+    "turbo-pipeline",
 ]
 
 
@@ -267,12 +268,12 @@ class SpawnAgentRequest(BaseModel):
         alias_generator=_to_camel,
     )
 
-    execution_id: str
-    role: str  # e.g. "developer", "tester", "security-reviewer", custom roles too
-    name: str  # e.g. "Developer Alpha", "Test Runner"
-    task: str  # The specific task for this agent
+    execution_id: str = Field(max_length=64)
+    role: str = Field(max_length=100)  # e.g. "developer", "tester", "security-reviewer", custom roles too
+    name: str = Field(max_length=200)  # e.g. "Developer Alpha", "Test Runner"
+    task: str = Field(max_length=50000)  # The specific task for this agent
     wait: bool = True  # If True, block until agent completes; if False, return agent_id immediately
-    model: str | None = None  # Override model for this agent
+    model: str | None = Field(default=None, max_length=50)  # Override model for this agent
 
 
 class SpawnAgentResponse(BaseModel):

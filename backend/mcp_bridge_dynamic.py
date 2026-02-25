@@ -21,14 +21,14 @@ EXECUTION_ID = os.environ.get("ORCHESTRA_EXECUTION_ID", "")
 TOKEN = os.environ.get("ORCHESTRA_INTERNAL_TOKEN", "")
 
 
-def _post(path: str, body: dict) -> dict:
+def _post(path: str, body: dict, timeout: int = 60) -> dict:
     """POST JSON to internal API."""
     url = f"{API_URL}{path}"
     data = json.dumps(body).encode()
     req = urllib.request.Request(url, data=data, method="POST")
     req.add_header("Content-Type", "application/json")
     req.add_header("X-Orchestra-Token", TOKEN)
-    with urllib.request.urlopen(req, timeout=60) as resp:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read())
 
 
@@ -53,6 +53,19 @@ def _long_poll_result(agent_id: str, max_wait: int = 1800) -> dict:
             pass
         elapsed += 30
     return {"status": "timeout", "output": "Agent timed out"}
+
+
+def _long_poll_multiple_results(agent_ids: list[str], max_wait: int = 900) -> list[dict]:
+    """Long-poll for multiple agent results via the batch wait endpoint."""
+    try:
+        result = _post("/api/internal/agents/wait", {
+            "agent_ids": agent_ids,
+            "timeout": max_wait,
+        }, timeout=max_wait + 30)
+        return result.get("results", [])
+    except urllib.error.URLError:
+        # Fallback: poll individually
+        return [_long_poll_result(aid, max_wait) for aid in agent_ids]
 
 
 # --- MCP stdio protocol ---
@@ -90,7 +103,7 @@ TOOLS = [
                         "If true, block until agent completes. If false, return "
                         "agent_id immediately for parallel work."
                     ),
-                    "default": True,
+                    "default": False,
                 },
             },
             "required": ["role", "name", "task"],
@@ -122,6 +135,50 @@ TOOLS = [
             "required": ["question"],
         },
     },
+    {
+        "name": "spawn_agents",
+        "description": (
+            "Spawn multiple agents in a single batch call. Always async — returns all "
+            "agent_ids immediately. Use wait_for_agents to collect results."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agents": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "role": {"type": "string", "description": "Agent role"},
+                            "name": {"type": "string", "description": "Human-readable agent name"},
+                            "task": {"type": "string", "description": "Detailed task description"},
+                        },
+                        "required": ["role", "name", "task"],
+                    },
+                    "description": "List of agents to spawn in parallel",
+                },
+            },
+            "required": ["agents"],
+        },
+    },
+    {
+        "name": "wait_for_agents",
+        "description": (
+            "Wait for multiple agents to complete. Blocks until ALL listed agents finish "
+            "(or timeout). Returns all results at once. More efficient than polling individually."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agent_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of agent IDs to wait for",
+                },
+            },
+            "required": ["agent_ids"],
+        },
+    },
 ]
 
 
@@ -131,7 +188,7 @@ def handle_tool_call(tool_name: str, arguments: dict) -> str:
         role = arguments["role"]
         name = arguments["name"]
         task = arguments["task"]
-        wait = arguments.get("wait", True)
+        wait = arguments.get("wait", False)
 
         result = _post("/api/internal/spawn-agent", {
             "execution_id": EXECUTION_ID,
@@ -162,6 +219,26 @@ def handle_tool_call(tool_name: str, arguments: dict) -> str:
         agent_id = arguments["agent_id"]
         result = _get(f"/api/internal/agent/{agent_id}/status")
         return json.dumps(result)
+
+    elif tool_name == "spawn_agents":
+        agents_list = arguments["agents"]
+        results = []
+        for agent_spec in agents_list:
+            result = _post("/api/internal/spawn-agent", {
+                "execution_id": EXECUTION_ID,
+                "role": agent_spec["role"],
+                "name": agent_spec["name"],
+                "task": agent_spec["task"],
+                "wait": False,
+                "model": None,
+            })
+            results.append({"agent_id": result["agent_id"], "name": agent_spec["name"], "status": "running"})
+        return json.dumps({"agents": results, "message": f"Spawned {len(results)} agents. Use wait_for_agents to collect results."})
+
+    elif tool_name == "wait_for_agents":
+        agent_ids = arguments["agent_ids"]
+        results = _long_poll_multiple_results(agent_ids)
+        return json.dumps({"results": results})
 
     elif tool_name == "ask_user":
         question = arguments["question"]
