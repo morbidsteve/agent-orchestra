@@ -7,7 +7,7 @@ import type {
   WsConsoleMessage,
   DynamicAgent,
 } from '../lib/types.ts';
-import { fetchExecution } from '../lib/api.ts';
+import { fetchExecution, fetchDynamicAgents } from '../lib/api.ts';
 import { calculateAgentPositions } from '../lib/layoutEngine.ts';
 
 /** Maps backend pipeline phase names to agent roles for office visualization. */
@@ -28,6 +28,9 @@ const ROLE_COLORS: Record<string, string> = {
   tester: '#22c55e',
   devsecops: '#f97316',
   'business-dev': '#a855f7',
+  'frontend-dev': '#ec4899',
+  'backend-dev': '#8b5cf6',
+  'devops': '#eab308',
 };
 
 /** Icon lookup for known agent roles. */
@@ -37,6 +40,9 @@ const ROLE_ICONS: Record<string, string> = {
   tester: 'FlaskConical',
   devsecops: 'Shield',
   'business-dev': 'Briefcase',
+  'frontend-dev': 'Palette',
+  'backend-dev': 'Server',
+  'devops': 'Container',
 };
 
 /** Generate a stable HSL color from any role string. */
@@ -216,25 +222,20 @@ export function useOfficeState(executionId: string | null): OfficeState {
     // Fetch current execution state to initialize agent visuals from pipeline data.
     // This covers messages that were broadcast before the WebSocket connected.
     let cancelled = false;
-    fetchExecution(executionId)
+    const pipelinePromise = fetchExecution(executionId)
       .then(execution => {
-        if (cancelled || !execution?.pipeline) return;
+        if (!execution?.pipeline) return null;
 
-        // Build agents dynamically from pipeline steps
         const agentMap = new Map<string, AgentNode>();
         let runningPhase: string | null = null;
         const initialConnections: AgentConnection[] = [];
 
         execution.pipeline.forEach((step, index) => {
           const agentRole = step.agentRole || PHASE_AGENTS[step.phase] || 'developer';
-
-          // Ensure agent exists in the map
           if (!agentMap.has(agentRole)) {
             agentMap.set(agentRole, createAgentNode(agentRole));
           }
-
           const agent = agentMap.get(agentRole)!;
-
           if (step.status === 'running') {
             runningPhase = step.phase;
             agentMap.set(agentRole, {
@@ -250,7 +251,6 @@ export function useOfficeState(executionId: string | null): OfficeState {
                 currentTask: '',
               });
             }
-            // Add connection to next phase
             if (index < execution.pipeline.length - 1) {
               const nextStep = execution.pipeline[index + 1];
               const nextAgent = nextStep.agentRole || PHASE_AGENTS[nextStep.phase] || 'developer';
@@ -265,25 +265,36 @@ export function useOfficeState(executionId: string | null): OfficeState {
           }
         });
 
-        const initialAgents = [...agentMap.values()];
-        // Prime the layout engine with the agent count
-        calculateAgentPositions(initialAgents.length);
+        const lastCompleted = [...execution.pipeline]
+          .reverse()
+          .find(s => s.status === 'completed');
 
-        setAgents(initialAgents);
-        setConnections(initialConnections);
-        if (runningPhase) {
-          setCurrentPhase(runningPhase);
-        } else {
-          // Find the last completed phase
-          const lastCompleted = [...execution.pipeline]
-            .reverse()
-            .find(s => s.status === 'completed');
-          if (lastCompleted) setCurrentPhase(lastCompleted.phase);
-        }
+        return { agentMap, initialConnections, runningPhase, lastCompletedPhase: lastCompleted?.phase ?? null };
       })
-      .catch(() => {
-        // Silently fail — WebSocket updates will provide state
-      });
+      .catch(() => null);
+
+    const dynamicPromise = fetchDynamicAgents(executionId).catch(() => []);
+
+    Promise.all([pipelinePromise, dynamicPromise]).then(([result, dynamicAgents]) => {
+      if (cancelled || !result) return;
+
+      // Merge dynamic agents into the pipeline agent map
+      for (const da of dynamicAgents) {
+        if (!result.agentMap.has(da.id)) {
+          result.agentMap.set(da.id, dynamicAgentToNode(da));
+        }
+      }
+
+      const initialAgents = [...result.agentMap.values()];
+      calculateAgentPositions(initialAgents.length);
+      setAgents(initialAgents);
+      setConnections(result.initialConnections);
+      if (result.runningPhase) {
+        setCurrentPhase(result.runningPhase);
+      } else if (result.lastCompletedPhase) {
+        setCurrentPhase(result.lastCompletedPhase);
+      }
+    });
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/api/ws/${encodeURIComponent(executionId)}`;

@@ -51,6 +51,9 @@ PHASE_AGENTS_INFO: dict[str, dict[str, str]] = {
     "tester": {"name": "Tester", "color": "#22c55e", "icon": "FlaskConical"},
     "devsecops": {"name": "DevSecOps", "color": "#f97316", "icon": "Shield"},
     "business-dev": {"name": "Business Dev", "color": "#a855f7", "icon": "Briefcase"},
+    "frontend-dev": {"name": "Frontend Dev", "color": "#ec4899", "icon": "Palette"},
+    "backend-dev": {"name": "Backend Dev", "color": "#8b5cf6", "icon": "Server"},
+    "devops": {"name": "DevOps", "color": "#eab308", "icon": "Container"},
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
