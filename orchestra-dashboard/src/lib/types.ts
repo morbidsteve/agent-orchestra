@@ -247,6 +247,13 @@ export interface Conversation {
 
 export type AgentVisualStatus = 'idle' | 'working' | 'done' | 'error';
 
+export type CharacterPhase =
+  | 'at-center'
+  | 'walking-to-desk'
+  | 'at-desk-working'
+  | 'celebrating'
+  | 'walking-to-center';
+
 export interface AgentNode {
   role: string;
   name: string;

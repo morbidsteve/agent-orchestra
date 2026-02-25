@@ -69,6 +69,17 @@ export function ConnectionLine({ x1, y1, x2, y2, color, active }: ConnectionLine
           />
         </line>
       )}
+
+      {/* Directional particle animation */}
+      {active && (
+        <circle r={0.8} fill={color} opacity={0.9}>
+          <animateMotion
+            dur="1.5s"
+            repeatCount="indefinite"
+            path={`M${x1},${y1} L${x2},${y2}`}
+          />
+        </circle>
+      )}
     </g>
   );
 }
