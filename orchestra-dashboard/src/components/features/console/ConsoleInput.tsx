@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Send, ChevronDown, ChevronUp, GitBranch, FolderOpen } from 'lucide-react';
 import { cn } from '../../../lib/cn.ts';
 import { MODELS } from '../../../lib/constants.ts';
-import { useConversationContext } from '../../../context/ConversationContext.tsx';
+import { useSessionContext } from '../../../context/SessionContext.tsx';
 
 interface ConsoleInputProps {
   onSend: (text: string) => void;
@@ -15,7 +15,7 @@ export function ConsoleInput({ onSend, disabled, model, onModelChange }: Console
   const [text, setText] = useState('');
   const [showOptions, setShowOptions] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { githubUrl, setGithubUrl, folderPath, setFolderPath } = useConversationContext();
+  const { githubUrl, setGithubUrl, folderPath, setFolderPath } = useSessionContext();
 
   const autoResize = useCallback(() => {
     const ta = textareaRef.current;

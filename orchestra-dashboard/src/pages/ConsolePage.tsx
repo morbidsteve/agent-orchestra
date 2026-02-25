@@ -1,51 +1,49 @@
-import { useCallback } from 'react';
 import { ConversationPanel } from '../components/features/console/ConversationPanel.tsx';
 import { ContextPanel } from '../components/features/console/ContextPanel.tsx';
-import { useConversationContext } from '../context/ConversationContext.tsx';
-import { useConsoleWebSocket } from '../hooks/useConsoleWebSocket.ts';
-import { useDynamicAgents } from '../hooks/useDynamicAgents.ts';
+import type { Conversation, ConversationMessage, WsConsoleMessage, DynamicAgent, FileTreeNode } from '../lib/types.ts';
+import type { ExecutionWsStatus } from '../hooks/useConsoleWebSocket.ts';
 
-export function ConsolePage() {
-  const {
-    conversation,
-    messages,
-    isLoading,
-    sendMessage,
-    startConversation,
-    model,
-    setModel,
-  } = useConversationContext();
+interface ConsolePageProps {
+  conversation: Conversation | null;
+  messages: ConversationMessage[];
+  isLoading: boolean;
+  model: string;
+  onModelChange: (model: string) => void;
+  onSend: (text: string) => void;
+  onClarificationReply: (answer: string) => void;
+  executionId: string | null;
+  wsMessages: WsConsoleMessage[];
+  executionStatus: ExecutionWsStatus;
+  fileTree: FileTreeNode[];
+  activeFiles: string[];
+  dynamicAgents: DynamicAgent[];
+}
 
-  const conversationId = conversation?.id ?? null;
-  const executionId = conversation?.activeExecutionId ?? null;
-
-  const { messages: wsMessages, executionStatus, pendingQuestion, sendAnswer } = useConsoleWebSocket(conversationId);
-  const { agents: dynamicAgents, fileTree, activeFiles } = useDynamicAgents(wsMessages);
-
-  const handleSend = useCallback(async (text: string) => {
-    if (conversation) {
-      await sendMessage(text);
-    } else {
-      await startConversation(text, undefined, model);
-    }
-  }, [conversation, sendMessage, startConversation, model]);
-
-  const handleClarificationReply = useCallback((answer: string) => {
-    if (pendingQuestion) {
-      sendAnswer(pendingQuestion.questionId, answer);
-    }
-  }, [pendingQuestion, sendAnswer]);
-
+export function ConsolePage({
+  conversation,
+  messages,
+  isLoading,
+  model,
+  onModelChange,
+  onSend,
+  onClarificationReply,
+  executionId,
+  wsMessages,
+  executionStatus,
+  fileTree,
+  activeFiles,
+  dynamicAgents,
+}: ConsolePageProps) {
   return (
     <div className="flex h-full">
       <div className="w-3/5 flex flex-col border-r border-surface-600">
         <ConversationPanel
           messages={messages}
-          onSend={handleSend}
+          onSend={onSend}
           isLoading={isLoading}
           model={model}
-          onModelChange={setModel}
-          onClarificationReply={handleClarificationReply}
+          onModelChange={onModelChange}
+          onClarificationReply={onClarificationReply}
         />
       </div>
       <div className="w-2/5 flex flex-col">

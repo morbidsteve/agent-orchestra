@@ -1,37 +1,18 @@
 import { Landmark } from 'lucide-react';
-import { useOfficeState } from '../hooks/useOfficeState.ts';
 import { OfficeCanvas } from '../components/features/office/OfficeCanvas.tsx';
 import { OfficeStatusBar } from '../components/features/office/OfficeStatusBar.tsx';
-import { useExecutions } from '../hooks/useExecutions.ts';
-import { useConsoleWebSocket } from '../hooks/useConsoleWebSocket.ts';
-import { useConversationContext } from '../context/ConversationContext.tsx';
-import { useDynamicAgents } from '../hooks/useDynamicAgents.ts';
+import type { OfficeState } from '../lib/types.ts';
 
-export function AgentOfficePage() {
-  const { latest } = useExecutions();
-  const { conversation } = useConversationContext();
+interface AgentOfficePageProps {
+  officeState: OfficeState;
+  startedAt: string | null;
+  agentOutputMap: Map<string, string[]>;
+  agentFilesMap: Map<string, string[]>;
+}
 
-  // Show the most relevant execution: active if any, otherwise most recent
-  const executionId = latest?.id ?? null;
-  const startedAt = latest?.startedAt ?? null;
-
-  const officeState = useOfficeState(executionId);
-
-  // Get dynamic agent data from the current conversation's WebSocket
-  const conversationId = conversation?.id ?? null;
-  const { messages: wsMessages } = useConsoleWebSocket(conversationId);
-  const { agents: dynamicAgents } = useDynamicAgents(wsMessages);
-
-  // Build a lookup of dynamic agent output for the mini terminals
-  const agentOutputMap = new Map<string, string[]>();
-  const agentFilesMap = new Map<string, string[]>();
-  for (const agent of dynamicAgents) {
-    agentOutputMap.set(agent.id, agent.output);
-    agentFilesMap.set(agent.id, [...agent.filesModified, ...agent.filesRead]);
-  }
-
+export function AgentOfficePage({ officeState, startedAt, agentOutputMap, agentFilesMap }: AgentOfficePageProps) {
   return (
-    <div className="flex flex-col gap-4" style={{ height: 'calc(100vh - 3rem)' }}>
+    <div className="flex flex-col gap-4" style={{ height: 'calc(100vh - 5.5rem)' }}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

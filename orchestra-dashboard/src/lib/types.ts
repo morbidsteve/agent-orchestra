@@ -403,6 +403,8 @@ export interface Codebase {
   createdAt: string;
 }
 
+export type SessionSubView = 'console' | 'office' | 'dashboard';
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Dynamic Agent WebSocket message types (v0.5.0)
 // ──────────────────────────────────────────────────────────────────────────────
