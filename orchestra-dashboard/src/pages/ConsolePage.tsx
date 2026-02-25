@@ -7,8 +7,6 @@ interface ConsolePageProps {
   conversation: Conversation | null;
   messages: ConversationMessage[];
   isLoading: boolean;
-  model: string;
-  onModelChange: (model: string) => void;
   onSend: (text: string) => void;
   onClarificationReply: (answer: string) => void;
   executionId: string | null;
@@ -23,8 +21,6 @@ export function ConsolePage({
   conversation,
   messages,
   isLoading,
-  model,
-  onModelChange,
   onSend,
   onClarificationReply,
   executionId,
@@ -41,8 +37,6 @@ export function ConsolePage({
           messages={messages}
           onSend={onSend}
           isLoading={isLoading}
-          model={model}
-          onModelChange={onModelChange}
           onClarificationReply={onClarificationReply}
         />
       </div>
