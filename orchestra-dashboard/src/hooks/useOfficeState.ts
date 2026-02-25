@@ -7,7 +7,7 @@ import type {
   WsConsoleMessage,
   DynamicAgent,
 } from '../lib/types.ts';
-import { fetchExecution, fetchDynamicAgents } from '../lib/api.ts';
+import { fetchExecution, fetchDynamicAgents, fetchAgents } from '../lib/api.ts';
 import { calculateAgentPositions } from '../lib/layoutEngine.ts';
 
 /** Maps backend pipeline phase names to agent roles for office visualization. */
@@ -275,23 +275,36 @@ export function useOfficeState(executionId: string | null): OfficeState {
 
     const dynamicPromise = fetchDynamicAgents(executionId).catch(() => []);
 
-    Promise.all([pipelinePromise, dynamicPromise]).then(([result, dynamicAgents]) => {
-      if (cancelled || !result) return;
+    const registeredPromise = fetchAgents().catch(() => []);
 
-      // Merge dynamic agents into the pipeline agent map
+    Promise.all([pipelinePromise, dynamicPromise, registeredPromise]).then(([result, dynamicAgents, registeredAgents]) => {
+      if (cancelled) return;
+
+      // Start with pipeline agents (or empty map if no execution)
+      const agentMap = result?.agentMap ?? new Map<string, AgentNode>();
+      const initialConnections = result?.initialConnections ?? [];
+
+      // Merge dynamic agents
       for (const da of dynamicAgents) {
-        if (!result.agentMap.has(da.id)) {
-          result.agentMap.set(da.id, dynamicAgentToNode(da));
+        if (!agentMap.has(da.id)) {
+          agentMap.set(da.id, dynamicAgentToNode(da));
         }
       }
 
-      const initialAgents = [...result.agentMap.values()];
+      // Merge registered agents — add any not already present as idle
+      for (const ra of registeredAgents) {
+        if (!agentMap.has(ra.role)) {
+          agentMap.set(ra.role, createAgentNode(ra.role));
+        }
+      }
+
+      const initialAgents = [...agentMap.values()];
       calculateAgentPositions(initialAgents.length);
       setAgents(initialAgents);
-      setConnections(result.initialConnections);
-      if (result.runningPhase) {
+      setConnections(initialConnections);
+      if (result?.runningPhase) {
         setCurrentPhase(result.runningPhase);
-      } else if (result.lastCompletedPhase) {
+      } else if (result?.lastCompletedPhase) {
         setCurrentPhase(result.lastCompletedPhase);
       }
     });
