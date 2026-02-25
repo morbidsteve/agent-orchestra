@@ -158,8 +158,36 @@ export function sendMessage(conversationId: string, params: {
 // System
 // ──────────────────────────────────────────────────────────────────────────────
 
-export function triggerSystemUpdate(): Promise<{ status: string; message?: string }> {
-  return apiFetch<{ status: string; message?: string }>('/api/system/update', { method: 'POST' });
+export interface SystemTag {
+  name: string;
+  date: string;
+}
+
+export interface SystemTagsResponse {
+  tags: SystemTag[];
+  current_tag: string | null;
+  current_commit: string;
+}
+
+export interface SystemVersionResponse {
+  current_tag: string | null;
+  current_commit: string;
+  on_latest_master: boolean;
+}
+
+export function fetchSystemTags(): Promise<SystemTagsResponse> {
+  return apiFetch<SystemTagsResponse>('/api/system/tags');
+}
+
+export function fetchSystemVersion(): Promise<SystemVersionResponse> {
+  return apiFetch<SystemVersionResponse>('/api/system/version');
+}
+
+export function triggerSystemUpdate(tag?: string): Promise<{ status: string; message?: string }> {
+  return apiFetch<{ status: string; message?: string }>('/api/system/update', {
+    method: 'POST',
+    body: tag ? JSON.stringify({ tag }) : undefined,
+  });
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
