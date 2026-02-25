@@ -24,6 +24,46 @@ function DeskAccessory({ role }: { role: string }) {
   return null;
 }
 
+/** Role-specific desk decoration SVG items */
+function DeskDecoration({ role, color }: { role: string; color: string }) {
+  if (role === 'developer' || role === 'developer-2') {
+    return (
+      <svg width="20" height="14" viewBox="0 0 20 14" className="opacity-30">
+        {/* Code brackets */}
+        <text x="2" y="11" fontSize="10" fill={color} fontFamily="monospace">{'</>'}</text>
+      </svg>
+    );
+  }
+  if (role === 'tester') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" className="opacity-30">
+        {/* Test tube */}
+        <rect x="6" y="2" width="4" height="10" rx="1" fill={color} opacity="0.5" />
+        <circle cx="8" cy="13" r="3" fill={color} opacity="0.3" />
+      </svg>
+    );
+  }
+  if (role === 'devsecops') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" className="opacity-30">
+        {/* Shield */}
+        <path d="M8 1 L14 4 L14 9 C14 12 8 15 8 15 C8 15 2 12 2 9 L2 4 Z" fill={color} opacity="0.4" />
+      </svg>
+    );
+  }
+  if (role === 'business-dev') {
+    return (
+      <svg width="20" height="14" viewBox="0 0 20 14" className="opacity-30">
+        {/* Bar chart */}
+        <rect x="2" y="8" width="3" height="6" fill={color} opacity="0.3" />
+        <rect x="7" y="4" width="3" height="10" fill={color} opacity="0.4" />
+        <rect x="12" y="1" width="3" height="13" fill={color} opacity="0.5" />
+      </svg>
+    );
+  }
+  return null;
+}
+
 export function DeskWorkstation({ agent, position, outputLines = [], filesWorking = [] }: WorkstationCardProps) {
   const isWorking = agent.visualStatus === 'working';
   const isDone = agent.visualStatus === 'done';
@@ -51,6 +91,22 @@ export function DeskWorkstation({ agent, position, outputLines = [], filesWorkin
         transform: 'translate(-50%, -50%)',
       }}
     >
+      {/* Person silhouette sitting at desk */}
+      <div className="flex justify-center mb-1">
+        <svg width="32" height="28" viewBox="0 0 32 28" fill="none">
+          {/* Head */}
+          <circle cx="16" cy="8" r="5" fill={agent.color} opacity={isIdle ? 0.2 : 0.5} />
+          {/* Shoulders/torso */}
+          <path d="M6 28 C6 18 10 14 16 14 C22 14 26 18 26 28" fill={agent.color} opacity={isIdle ? 0.15 : 0.35} />
+          {/* Glow when working */}
+          {isWorking && (
+            <circle cx="16" cy="8" r="7" fill="none" stroke={agent.color} strokeWidth="1" opacity="0.3">
+              <animate attributeName="opacity" values="0.1;0.4;0.1" dur="2s" repeatCount="indefinite" />
+            </circle>
+          )}
+        </svg>
+      </div>
+
       {/* Desk surface */}
       <div
         className={cn(
@@ -103,6 +159,49 @@ export function DeskWorkstation({ agent, position, outputLines = [], filesWorkin
           )}
         </div>
 
+        {/* Monitor stand */}
+        <div className="flex justify-center">
+          <div style={{
+            width: '12px',
+            height: '4px',
+            backgroundColor: '#333842',
+            borderRadius: '0 0 2px 2px',
+          }} />
+        </div>
+        <div className="flex justify-center">
+          <div style={{
+            width: '24px',
+            height: '2px',
+            backgroundColor: '#333842',
+            borderRadius: '1px',
+          }} />
+        </div>
+
+        {/* Keyboard */}
+        <div className="flex justify-center my-1">
+          <div style={{
+            width: '40px',
+            height: '6px',
+            backgroundColor: '#2a2d35',
+            borderRadius: '1px',
+            border: '1px solid #333842',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '1px',
+            paddingTop: '1px',
+          }}>
+            {[0,1,2,3,4].map(i => (
+              <span key={i} style={{ display: 'inline-block', width: '3px', height: '2px', backgroundColor: '#3a3d45', borderRadius: '0.5px' }} />
+            ))}
+          </div>
+        </div>
+
+        {/* Role-specific desk decoration */}
+        <div className="flex items-center justify-center mb-0.5">
+          <DeskDecoration role={agent.role} color={agent.color} />
+        </div>
+
         {/* Agent identity row */}
         <div className="flex items-center gap-1.5 px-2.5 py-1.5">
           {/* Avatar dot */}
@@ -149,17 +248,18 @@ export function DeskWorkstation({ agent, position, outputLines = [], filesWorkin
         </div>
       </div>
 
-      {/* Chair (semi-circle below desk) */}
-      <div className="flex justify-center mt-0.5">
-        <div
-          className={cn(
-            'w-8 h-3.5 rounded-b-full transition-all duration-300',
-            isWorking ? 'opacity-60' : 'opacity-30',
-          )}
-          style={{
-            backgroundColor: agent.color,
-          }}
-        />
+      {/* Office chair */}
+      <div className="flex justify-center mt-1">
+        <svg width="36" height="16" viewBox="0 0 36 16" fill="none">
+          {/* Seat cushion */}
+          <rect x="4" y="0" width="28" height="6" rx="3" fill={agent.color} opacity={isWorking ? 0.3 : 0.12} />
+          {/* Chair base/stem */}
+          <rect x="15" y="6" width="6" height="4" rx="1" fill={agent.color} opacity={isWorking ? 0.2 : 0.08} />
+          {/* Wheels */}
+          <circle cx="10" cy="14" r="2" fill={agent.color} opacity={isWorking ? 0.2 : 0.08} />
+          <circle cx="18" cy="14" r="2" fill={agent.color} opacity={isWorking ? 0.2 : 0.08} />
+          <circle cx="26" cy="14" r="2" fill={agent.color} opacity={isWorking ? 0.2 : 0.08} />
+        </svg>
       </div>
     </div>
   );
