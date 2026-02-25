@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 
+_cache: dict[str, str] = {}
+
 
 def build_project_context(work_dir: str) -> str:
     """Build a project context block from conventions files in work_dir.
@@ -12,6 +14,9 @@ def build_project_context(work_dir: str) -> str:
     Reads CLAUDE.md, README.md, package.json, and pyproject.toml (with graceful
     failure) and returns a formatted ## Project Context block, or empty string.
     """
+    if work_dir in _cache:
+        return _cache[work_dir]
+
     sections: list[str] = []
 
     # CLAUDE.md — project conventions (first 5000 chars)
@@ -35,9 +40,12 @@ def build_project_context(work_dir: str) -> str:
         sections.append(f"### pyproject.toml\n{pyproject}")
 
     if not sections:
-        return ""
+        result = ""
+    else:
+        result = "## Project Context\n\n" + "\n\n".join(sections)
 
-    return "## Project Context\n\n" + "\n\n".join(sections)
+    _cache[work_dir] = result
+    return result
 
 
 def _read_file(path: str, max_chars: int) -> str:

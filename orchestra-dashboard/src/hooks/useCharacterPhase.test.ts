@@ -17,6 +17,29 @@ describe('useCharacterPhase', () => {
     expect(result.current).toBe('at-center');
   });
 
+  // ── remount / initial state based on visualStatus ──
+
+  it('initializes at "at-desk-working" when visualStatus is "working" (remount fix)', () => {
+    const { result } = renderHook(() => useCharacterPhase('working'));
+    expect(result.current).toBe('at-desk-working');
+  });
+
+  it('initializes at "celebrating" when visualStatus is "done" and transitions to at-center', () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useCharacterPhase('done'));
+    expect(result.current).toBe('celebrating');
+
+    // 2000ms → walking-to-center
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(result.current).toBe('walking-to-center');
+
+    // 3200ms total → at-center (advance 1200ms more)
+    act(() => { vi.advanceTimersByTime(1200); });
+    expect(result.current).toBe('at-center');
+
+    vi.useRealTimers();
+  });
+
   // ── working → walking-to-hub → at-hub-pickup → walking-to-desk → at-desk-working ──
 
   it('transitions to "walking-to-hub" immediately when status changes to "working"', () => {
