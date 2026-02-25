@@ -16,7 +16,7 @@ from backend.services.dynamic_orchestrator import launch_agent_subprocess
 
 router = APIRouter(prefix="/api/internal", tags=["internal-dynamic"])
 
-MAX_AGENTS_PER_EXECUTION = 20
+MAX_AGENTS_PER_EXECUTION = 100
 
 
 def _verify_token(token: str | None) -> None:
