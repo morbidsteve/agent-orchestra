@@ -31,16 +31,56 @@ const PLANTS: { x: string; y: string }[] = [
 /** Compute idle cluster positions in a small arc below the orchestrator */
 function getIdlePosition(index: number, total: number): { x: number; y: number } {
   const centerX = 50;
-  const centerY = 56; // slightly below center (orchestrator is at 50,50)
-  const radius = 8;   // 8% radius arc
-  const startAngle = -180; // arc from left to right (bottom semicircle)
-  const angleStep = total > 1 ? 160 / (total - 1) : 0;
-  const angle = startAngle + 10 + index * angleStep; // 10deg offset from edge
-  const rad = (angle * Math.PI) / 180;
-  return {
-    x: centerX + radius * Math.cos(rad),
-    y: centerY + radius * Math.sin(rad),
-  };
+  const centerY = 56;
+
+  if (total <= 6) {
+    // Small arc below orchestrator
+    const radius = 8;
+    const startAngle = -180;
+    const angleStep = total > 1 ? 160 / (total - 1) : 0;
+    const angle = startAngle + 10 + index * angleStep;
+    const rad = (angle * Math.PI) / 180;
+    return {
+      x: centerX + radius * Math.cos(rad),
+      y: centerY + radius * Math.sin(rad),
+    };
+  }
+
+  if (total <= 12) {
+    // Full circle, larger radius
+    const radius = 12;
+    const angleStep = 360 / total;
+    const angle = -90 + index * angleStep;
+    const rad = (angle * Math.PI) / 180;
+    return {
+      x: centerX + radius * Math.cos(rad),
+      y: centerY + radius * Math.sin(rad),
+    };
+  }
+
+  // 13+: two rings
+  const innerCount = Math.ceil(total / 2);
+  const outerCount = total - innerCount;
+  if (index < innerCount) {
+    const radius = 8;
+    const angleStep = 360 / innerCount;
+    const angle = -90 + index * angleStep;
+    const rad = (angle * Math.PI) / 180;
+    return {
+      x: centerX + radius * Math.cos(rad),
+      y: centerY + radius * Math.sin(rad),
+    };
+  } else {
+    const outerIndex = index - innerCount;
+    const radius = 14;
+    const angleStep = 360 / outerCount;
+    const angle = -90 + outerIndex * angleStep;
+    const rad = (angle * Math.PI) / 180;
+    return {
+      x: centerX + radius * Math.cos(rad),
+      y: centerY + radius * Math.sin(rad),
+    };
+  }
 }
 
 export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: OfficeCanvasProps) {
@@ -229,6 +269,40 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
         </svg>
       </div>
 
+      {/* Task queue board — near orchestrator hub */}
+      <div
+        className="absolute select-none"
+        style={{
+          left: '50%',
+          top: '42%',
+          transform: 'translate(-50%, -50%)',
+        }}
+      >
+        <svg width="36" height="20" viewBox="0 0 36 20" fill="none">
+          {/* Board background */}
+          <rect x="0" y="0" width="36" height="20" rx="2" fill="rgba(100,116,139,0.08)" stroke="rgba(100,116,139,0.1)" strokeWidth="0.5" />
+          {/* Task card slots */}
+          {agents.slice(0, 5).map((agent, i) => (
+            <rect
+              key={agent.role}
+              x={2 + i * 7}
+              y="3"
+              width="5"
+              height="7"
+              rx="0.5"
+              fill={agent.visualStatus === 'working' ? 'rgba(100,116,139,0.05)' : agent.color}
+              opacity={agent.visualStatus === 'working' ? 0.3 : 0.4}
+            >
+              {agent.visualStatus === 'idle' && (
+                <animate attributeName="opacity" values="0.3;0.5;0.3" dur="2s" repeatCount="indefinite" />
+              )}
+            </rect>
+          ))}
+          {/* "TASKS" label */}
+          <text x="18" y="17" textAnchor="middle" fontSize="3" fill="rgba(100,116,139,0.25)" fontFamily="monospace">TASKS</text>
+        </svg>
+      </div>
+
       {/* Agent desk workstations - positioned absolutely using layout engine coordinates */}
       <div className="absolute inset-0" style={{ zIndex: 2 }}>
         {agents.map((agent) => {
@@ -279,6 +353,7 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
               key={agent.role}
               agent={agent}
               idlePosition={idlePos}
+              hubPosition={{ x: 50, y: 50 }}
               deskPosition={{ x: deskPos.x, y: deskPos.y - 4 }}
               onClick={() => setSelectedAgent(agent.role)}
             />

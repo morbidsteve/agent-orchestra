@@ -250,6 +250,8 @@ export type AgentVisualStatus = 'idle' | 'working' | 'done' | 'error';
 
 export type CharacterPhase =
   | 'at-center'
+  | 'walking-to-hub'      // walking to orchestrator to pick up task
+  | 'at-hub-pickup'       // brief pause at hub, task card appears
   | 'walking-to-desk'
   | 'at-desk-working'
   | 'celebrating'

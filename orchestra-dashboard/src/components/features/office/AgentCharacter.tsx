@@ -4,33 +4,42 @@ import type { AgentNode } from '../../../lib/types.ts';
 interface AgentCharacterProps {
   agent: AgentNode;
   idlePosition: { x: number; y: number };  // percentage coords
+  hubPosition: { x: number; y: number };    // orchestrator center
   deskPosition: { x: number; y: number };   // percentage coords
   onClick?: () => void;
 }
 
-export function AgentCharacter({ agent, idlePosition, deskPosition, onClick }: AgentCharacterProps) {
+export function AgentCharacter({ agent, idlePosition, hubPosition, deskPosition, onClick }: AgentCharacterProps) {
   const phase = useCharacterPhase(agent.visualStatus);
 
   // Determine current position based on phase
-  const atDesk =
-    phase === 'walking-to-desk' ||
-    phase === 'at-desk-working' ||
-    phase === 'celebrating';
-  const position = atDesk ? deskPosition : idlePosition;
+  const position = (() => {
+    switch (phase) {
+      case 'walking-to-hub':
+      case 'at-hub-pickup':
+        return hubPosition;
+      case 'walking-to-desk':
+      case 'at-desk-working':
+      case 'celebrating':
+        return deskPosition;
+      case 'at-center':
+      case 'walking-to-center':
+      default:
+        return idlePosition;
+    }
+  })();
 
-  // Determine facing direction
-  const walkingToDesk = phase === 'walking-to-desk';
-  const walkingToCenter = phase === 'walking-to-center';
-  const facingLeft =
-    (walkingToDesk && deskPosition.x < idlePosition.x) ||
-    (walkingToCenter && idlePosition.x < deskPosition.x);
-  const facingRight =
-    (walkingToDesk && deskPosition.x >= idlePosition.x) ||
-    (walkingToCenter && idlePosition.x >= deskPosition.x);
-  const flipX = facingLeft ? -1 : facingRight ? 1 : 1;
+  // Determine facing direction based on movement
+  const facingLeft = (() => {
+    if (phase === 'walking-to-hub') return hubPosition.x < idlePosition.x;
+    if (phase === 'walking-to-desk') return deskPosition.x < hubPosition.x;
+    if (phase === 'walking-to-center') return idlePosition.x < deskPosition.x;
+    return false;
+  })();
+  const flipX = facingLeft ? -1 : 1;
 
   // Animation states
-  const isWalking = phase === 'walking-to-desk' || phase === 'walking-to-center';
+  const isWalking = phase === 'walking-to-desk' || phase === 'walking-to-center' || phase === 'walking-to-hub';
   const isWorking = phase === 'at-desk-working';
   const isCelebrating = phase === 'celebrating';
   const isIdle = phase === 'at-center';
@@ -73,6 +82,12 @@ export function AgentCharacter({ agent, idlePosition, deskPosition, onClick }: A
   // Hide legs when seated (working)
   const legOpacity = isWorking ? 0.2 : 0.7;
 
+  const transitionDuration =
+    phase === 'walking-to-hub' ? 800 :
+    phase === 'walking-to-desk' ? 1200 :
+    phase === 'walking-to-center' ? 1200 :
+    200; // snap for non-walking phases
+
   return (
     <div
       className="absolute"
@@ -82,7 +97,7 @@ export function AgentCharacter({ agent, idlePosition, deskPosition, onClick }: A
         transform: 'translate(-50%, -100%)',
         width: '48px',
         height: '76px',
-        transition: 'left 1200ms ease-in-out, top 1200ms ease-in-out',
+        transition: `left ${transitionDuration}ms ease-in-out, top ${transitionDuration}ms ease-in-out`,
         pointerEvents: onClick ? 'auto' : 'none',
         cursor: onClick ? 'pointer' : 'default',
         zIndex: isWalking ? 10 : 5,
@@ -187,6 +202,19 @@ export function AgentCharacter({ agent, idlePosition, deskPosition, onClick }: A
             <animate attributeName="y" values="4;-2" dur="1.5s" repeatCount="indefinite" />
             {'\u2713'}
           </text>
+        )}
+
+        {/* Carried task card — appears at hub pickup, carried to desk */}
+        {(phase === 'at-hub-pickup' || phase === 'walking-to-desk') && (
+          <g>
+            <rect x="30" y="0" width="8" height="10" rx="1" fill={agent.color} opacity="0.7" />
+            <line x1="32" y1="3" x2="36" y2="3" stroke="rgba(255,255,255,0.5)" strokeWidth="0.8" />
+            <line x1="32" y1="5" x2="37" y2="5" stroke="rgba(255,255,255,0.4)" strokeWidth="0.8" />
+            <line x1="32" y1="7" x2="35" y2="7" stroke="rgba(255,255,255,0.3)" strokeWidth="0.8" />
+            {phase === 'at-hub-pickup' && (
+              <animate attributeName="opacity" values="0;1" dur="0.3s" fill="freeze" />
+            )}
+          </g>
         )}
       </svg>
 
