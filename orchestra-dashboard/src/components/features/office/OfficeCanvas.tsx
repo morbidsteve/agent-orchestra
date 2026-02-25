@@ -89,6 +89,34 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
         border: '1px solid #2a2d35',
       }}
     >
+      {/* SVG connection layer - viewBox maps to percentage coords */}
+      {/* NOTE: This must be the first <svg> in the DOM so tests can find it via querySelector('svg') */}
+      <svg
+        className="absolute inset-0 h-full w-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        style={{ pointerEvents: 'none', zIndex: 1 }}
+      >
+        {displayConnections.map((conn) => {
+          const fromPos = conn.from === 'orchestrator' ? CENTER : (agentPositions.get(conn.from) || CENTER);
+          const toPos = conn.to === 'orchestrator' ? CENTER : (agentPositions.get(conn.to) || CENTER);
+          const color = AGENT_COLORS[conn.from] || agents.find(a => a.role === conn.from)?.color || '#6b7280';
+
+          return (
+            <ConnectionLine
+              key={`${conn.from}-${conn.to}`}
+              x1={fromPos.x}
+              y1={fromPos.y}
+              x2={toPos.x}
+              y2={toPos.y}
+              color={color}
+              active={conn.active}
+              label={conn.label}
+            />
+          );
+        })}
+      </svg>
+
       {/* Carpet-tile grid background */}
       <div
         className="absolute inset-0"
@@ -154,7 +182,7 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
         </span>
       ))}
 
-      {/* Decorative plants */}
+      {/* Decorative potted plants */}
       {PLANTS.map((p, i) => (
         <div
           key={i}
@@ -165,109 +193,88 @@ export function OfficeCanvas({ officeState, agentOutputMap, agentFilesMap }: Off
             transform: 'translate(-50%, -50%)',
           }}
         >
-          {/* Pot */}
           <div className="flex flex-col items-center">
-            <div
-              className="rounded-full"
-              style={{
-                width: '10px',
-                height: '10px',
-                backgroundColor: 'rgba(34,120,60,0.25)',
-                boxShadow: '0 0 4px rgba(34,120,60,0.1)',
-              }}
-            />
-            <div
-              style={{
-                width: '4px',
-                height: '3px',
-                backgroundColor: 'rgba(120,80,40,0.25)',
-                borderRadius: '0 0 2px 2px',
-              }}
-            />
+            <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+              {/* Leaves */}
+              <ellipse cx="8" cy="6" rx="5" ry="4" fill="rgba(34,120,60,0.3)" />
+              <ellipse cx="5" cy="8" rx="3" ry="3" fill="rgba(34,140,50,0.25)" />
+              <ellipse cx="11" cy="8" rx="3" ry="3" fill="rgba(34,140,50,0.25)" />
+              {/* Pot */}
+              <path d="M5 13 L4 18 L12 18 L11 13 Z" fill="rgba(140,90,50,0.3)" />
+              <rect x="4" y="12" width="8" height="2" rx="1" fill="rgba(160,100,60,0.35)" />
+            </svg>
           </div>
         </div>
       ))}
 
+      {/* Water cooler (top-left area) */}
+      <div className="absolute select-none" style={{ left: '12%', top: '12%', transform: 'translate(-50%, -50%)' }}>
+        <svg width="12" height="24" viewBox="0 0 12 24" fill="none">
+          {/* Water jug */}
+          <rect x="2" y="0" width="8" height="10" rx="2" fill="rgba(59,130,246,0.12)" stroke="rgba(59,130,246,0.08)" strokeWidth="0.5" />
+          {/* Dispenser body */}
+          <rect x="1" y="10" width="10" height="10" rx="1" fill="rgba(200,200,210,0.08)" stroke="rgba(200,200,210,0.06)" strokeWidth="0.5" />
+          {/* Base */}
+          <rect x="0" y="20" width="12" height="4" rx="1" fill="rgba(200,200,210,0.06)" />
+        </svg>
+      </div>
+
+      {/* Filing cabinet (left side) */}
+      <div className="absolute select-none" style={{ left: '7%', top: '50%', transform: 'translate(-50%, -50%)' }}>
+        <svg width="14" height="28" viewBox="0 0 14 28" fill="none">
+          <rect x="0" y="0" width="14" height="8" rx="1" fill="rgba(100,100,120,0.08)" stroke="rgba(100,100,120,0.06)" strokeWidth="0.5" />
+          <rect x="5" y="3" width="4" height="2" rx="0.5" fill="rgba(100,100,120,0.1)" />
+          <rect x="0" y="10" width="14" height="8" rx="1" fill="rgba(100,100,120,0.08)" stroke="rgba(100,100,120,0.06)" strokeWidth="0.5" />
+          <rect x="5" y="13" width="4" height="2" rx="0.5" fill="rgba(100,100,120,0.1)" />
+          <rect x="0" y="20" width="14" height="8" rx="1" fill="rgba(100,100,120,0.08)" stroke="rgba(100,100,120,0.06)" strokeWidth="0.5" />
+          <rect x="5" y="23" width="4" height="2" rx="0.5" fill="rgba(100,100,120,0.1)" />
+        </svg>
+      </div>
+
       {/* Whiteboard (top-right area) */}
-      <div
-        className="absolute select-none"
-        style={{
-          right: '8%',
-          top: '10%',
-          width: '32px',
-          height: '20px',
-          backgroundColor: 'rgba(200,200,210,0.06)',
-          border: '1px solid rgba(200,200,210,0.08)',
-          borderRadius: '2px',
-        }}
-      >
-        {/* Whiteboard dots (notes) */}
-        <div className="flex gap-1 p-1">
-          <span className="block h-1 w-1 rounded-full bg-gray-500/20" />
-          <span className="block h-1 w-3 rounded-full bg-gray-500/15" />
-        </div>
-        <div className="flex gap-1 px-1">
-          <span className="block h-1 w-2 rounded-full bg-gray-500/10" />
-        </div>
+      <div className="absolute select-none" style={{ right: '6%', top: '10%' }}>
+        <svg width="48" height="32" viewBox="0 0 48 32" fill="none">
+          {/* Board surface */}
+          <rect x="0" y="0" width="48" height="28" rx="2" fill="rgba(200,200,210,0.06)" stroke="rgba(200,200,210,0.1)" strokeWidth="0.5" />
+          {/* Content lines */}
+          <line x1="4" y1="6" x2="20" y2="6" stroke="rgba(59,130,246,0.15)" strokeWidth="1" />
+          <line x1="4" y1="11" x2="30" y2="11" stroke="rgba(200,200,210,0.08)" strokeWidth="0.5" />
+          <line x1="4" y1="15" x2="25" y2="15" stroke="rgba(200,200,210,0.08)" strokeWidth="0.5" />
+          <line x1="4" y1="19" x2="18" y2="19" stroke="rgba(200,200,210,0.08)" strokeWidth="0.5" />
+          {/* Sticky note */}
+          <rect x="32" y="4" width="10" height="10" rx="1" fill="rgba(250,204,21,0.08)" />
+          {/* Marker tray */}
+          <rect x="8" y="28" width="32" height="3" rx="1" fill="rgba(100,100,120,0.06)" />
+          <circle cx="16" cy="29.5" r="1" fill="rgba(239,68,68,0.15)" />
+          <circle cx="22" cy="29.5" r="1" fill="rgba(59,130,246,0.15)" />
+          <circle cx="28" cy="29.5" r="1" fill="rgba(34,197,94,0.15)" />
+        </svg>
       </div>
 
       {/* Coffee station (bottom-left area) */}
-      <div
-        className="absolute select-none"
-        style={{
-          left: '8%',
-          bottom: '10%',
-          transform: 'translate(-50%, 50%)',
-        }}
-      >
-        <div className="flex items-end gap-1">
+      <div className="absolute select-none" style={{ left: '8%', bottom: '10%', transform: 'translate(-50%, 50%)' }}>
+        <svg width="24" height="20" viewBox="0 0 24 20" fill="none">
           {/* Coffee machine */}
-          <div
-            style={{
-              width: '8px',
-              height: '12px',
-              backgroundColor: 'rgba(100,80,60,0.2)',
-              borderRadius: '1px',
-            }}
-          />
-          {/* Cup */}
-          <div
-            style={{
-              width: '5px',
-              height: '5px',
-              backgroundColor: 'rgba(160,132,92,0.15)',
-              borderRadius: '0 0 2px 2px',
-            }}
-          />
-        </div>
+          <rect x="0" y="2" width="12" height="14" rx="2" fill="rgba(100,80,60,0.15)" stroke="rgba(100,80,60,0.1)" strokeWidth="0.5" />
+          <rect x="2" y="5" width="8" height="5" rx="1" fill="rgba(80,60,40,0.12)" />
+          <rect x="3" y="12" width="2" height="3" rx="0.5" fill="rgba(160,132,92,0.15)" />
+          {/* Coffee cup */}
+          <rect x="16" y="10" width="7" height="8" rx="2" fill="rgba(160,132,92,0.12)" stroke="rgba(160,132,92,0.1)" strokeWidth="0.5" />
+          {/* Steam */}
+          <path d="M18 8 Q19 6 18 4" stroke="rgba(160,132,92,0.12)" strokeWidth="0.5" fill="none" />
+          <path d="M20 9 Q21 7 20 5" stroke="rgba(160,132,92,0.1)" strokeWidth="0.5" fill="none" />
+        </svg>
       </div>
 
-      {/* SVG connection layer - viewBox maps to percentage coords */}
-      <svg
-        className="absolute inset-0 h-full w-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        style={{ pointerEvents: 'none', zIndex: 1 }}
-      >
-        {displayConnections.map((conn) => {
-          const fromPos = conn.from === 'orchestrator' ? CENTER : (agentPositions.get(conn.from) || CENTER);
-          const toPos = conn.to === 'orchestrator' ? CENTER : (agentPositions.get(conn.to) || CENTER);
-          const color = AGENT_COLORS[conn.from] || agents.find(a => a.role === conn.from)?.color || '#6b7280';
-
-          return (
-            <ConnectionLine
-              key={`${conn.from}-${conn.to}`}
-              x1={fromPos.x}
-              y1={fromPos.y}
-              x2={toPos.x}
-              y2={toPos.y}
-              color={color}
-              active={conn.active}
-              label={conn.label}
-            />
-          );
-        })}
-      </svg>
+      {/* Meeting table (center area, above command center) */}
+      <div className="absolute select-none" style={{ left: '50%', top: '36%', transform: 'translate(-50%, -50%)' }}>
+        <svg width="40" height="16" viewBox="0 0 40 16" fill="none">
+          <ellipse cx="20" cy="8" rx="18" ry="6" fill="rgba(100,80,60,0.08)" stroke="rgba(100,80,60,0.06)" strokeWidth="0.5" />
+          {/* Small documents on table */}
+          <rect x="10" y="5" width="5" height="6" rx="0.5" fill="rgba(200,200,210,0.05)" />
+          <rect x="24" y="5" width="5" height="6" rx="0.5" fill="rgba(200,200,210,0.05)" />
+        </svg>
+      </div>
 
       {/* Agent desk workstations - positioned absolutely using layout engine coordinates */}
       <div className="absolute inset-0" style={{ zIndex: 2 }}>
