@@ -438,16 +438,30 @@ async def launch_agent_subprocess(execution_id: str, agent_id: str) -> None:
         "business-dev": BUSINESS_DEV["prompt"],
     }
 
-    system_prompt = role_prompts.get(
-        agent["role"],
-        f"You are a {agent['role']} specialist. Complete the assigned task thoroughly.",
-    )
+    system_prompt = role_prompts.get(agent["role"])
+    if not system_prompt:
+        # Check store for a custom agent matching this role
+        custom_agent = store.agents.get(agent["role"])
+        if custom_agent and custom_agent.get("isCustom"):
+            caps = ", ".join(custom_agent.get("capabilities") or [])
+            system_prompt = (
+                f"You are a {custom_agent['name']} specialist. "
+                f"{custom_agent.get('description', '')}"
+            )
+            if caps:
+                system_prompt += f"\n\nYour capabilities: {caps}"
+        else:
+            system_prompt = f"You are a {agent['role']} specialist. Complete the assigned task thoroughly."
 
     # Build allowed tools based on role
     if agent["role"] in ("security-reviewer", "devsecops"):
         allowed_tools = "Read,Glob,Grep"
     else:
-        allowed_tools = "Read,Edit,Write,Bash,Glob,Grep"
+        custom_agent = store.agents.get(agent["role"])
+        if custom_agent and custom_agent.get("isCustom") and custom_agent.get("tools"):
+            allowed_tools = ",".join(custom_agent["tools"])
+        else:
+            allowed_tools = "Read,Edit,Write,Bash,Glob,Grep"
 
     full_prompt = (
         f"{system_prompt}\n\n"
