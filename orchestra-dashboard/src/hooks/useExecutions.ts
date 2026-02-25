@@ -1,8 +1,16 @@
 import { useMemo } from 'react';
 import { useOrchestra } from '../context/OrchestraContext.tsx';
 
-export function useExecutions() {
-  const { executions } = useOrchestra();
+export function useExecutions(conversationId?: string | null) {
+  const { executions: allExecutions } = useOrchestra();
+
+  // When conversationId is provided, scope to that conversation's executions only.
+  // When undefined (not passed), show all executions (backward compat for global pages).
+  const executions = useMemo(() => {
+    if (conversationId === undefined) return allExecutions;
+    if (conversationId === null) return [];
+    return allExecutions.filter(e => e.conversationId === conversationId);
+  }, [allExecutions, conversationId]);
 
   const active = useMemo(
     () => executions.filter(e => e.status === 'running' || e.status === 'queued'),
@@ -18,7 +26,6 @@ export function useExecutions() {
   const latest = useMemo(() => {
     const running = executions.filter(e => e.status === 'running' || e.status === 'queued');
     if (running.length > 0) return running[0];
-    // Fall back to most recent execution (already sorted by createdAt desc)
     if (executions.length > 0) return executions[0];
     return null;
   }, [executions]);
