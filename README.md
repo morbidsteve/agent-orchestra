@@ -4,26 +4,9 @@
 [![React 19](https://img.shields.io/badge/react-19-61dafb)](https://react.dev)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-A multi-agent development system where you describe what you want to build in plain language, and five specialized AI agents plan, develop, test, secure, and ship it — orchestrated in real time through a conversational interface.
+A multi-agent development system where you describe what you want to build in plain language, and eight specialized AI agents plan, develop, test, secure, and ship it — orchestrated in real time through a conversational interface.
 
-<!-- TODO: screenshots -->
-
-## Getting Started
-
-The fastest path is the [Trail of Bits devcontainer](https://github.com/trailofbits/claude-code-devcontainer):
-
-```bash
-devc .                 # build and start the container
-devc shell             # open a shell inside it
-make                   # install deps + start backend & frontend
-```
-
-Then open **http://localhost:5173**. On first launch a setup wizard walks you through connecting Claude Code and GitHub — once both are authenticated you land in the Console and can start typing.
-
-<details>
-<summary>Alternative: run locally without a devcontainer</summary>
-
-Requires Python 3.11+, Node.js 18+, Git, and Make.
+## Quick Start
 
 ```bash
 git clone https://github.com/morbidsteve/agent-orchestra.git
@@ -31,16 +14,16 @@ cd agent-orchestra
 make
 ```
 
-Or use the setup script (installs missing prerequisites automatically):
+That's it. `make` creates a Python venv, installs Node dependencies, and starts both servers. Open **http://localhost:5173** — a setup wizard walks you through connecting Claude Code and GitHub.
+
+Don't have Python/Node/Make? The setup script handles everything:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/morbidsteve/agent-orchestra/master/setup.sh | bash
 ```
 
-</details>
-
 <details>
-<summary>Alternative: Docker</summary>
+<summary>Docker</summary>
 
 ```bash
 docker build -t agent-orchestra .
@@ -48,6 +31,21 @@ docker run --rm -p 5173:5173 -p 8000:8000 agent-orchestra
 ```
 
 </details>
+
+<details>
+<summary>Devcontainer (Trail of Bits)</summary>
+
+```bash
+devc .          # build and start the container
+devc shell      # open a shell inside it
+make            # install deps + start servers
+```
+
+</details>
+
+---
+
+![Agent Orchestra — Execution View](screenshot.png)
 
 ---
 
@@ -57,21 +55,19 @@ docker run --rm -p 5173:5173 -p 8000:8000 agent-orchestra
 
 The primary interface at `/` is a chat-style console. Describe what you want — "add OAuth login to the backend," "run a security audit on the payments module," "evaluate whether we should add real-time collaboration" — and the orchestrator detects your intent, selects the right workflow, and executes it.
 
-The split-panel layout puts the conversation on the left and a live context panel on the right, showing execution progress, agent activity, and screenshot captures as work happens. No forms, no dropdowns — just type.
+The split-panel layout puts the conversation on the left and a live context panel on the right, showing execution progress, agent activity, and screenshot captures as work happens.
 
 ### Agent Office
 
-A visual node graph at `/office` shows all five agents (Developer, Developer 2, Tester, DevSecOps, Business Dev) arranged around a central Orchestrator hub. Each node reflects real-time status: idle pulse, working spin with glow, or completed checkmark. Animated SVG connection lines visualize data handoffs between agents as a pipeline runs.
-
-A mini-view of the Agent Office is also embedded in the Console's context panel for quick reference.
+A visual node graph at `/office` shows all eight agents arranged around a central Orchestrator hub. Each node reflects real-time status: idle pulse, working spin with glow, or completed checkmark. Animated SVG connection lines visualize data handoffs between agents as a pipeline runs.
 
 ### Screenshot System
 
-Terminal snapshots are captured automatically after each pipeline phase, and browser screenshots are taken via Playwright during the security phase to capture the running product. View them in a timeline, a lightbox, or as a carousel in the console context panel.
+Terminal snapshots are captured automatically after each pipeline phase, and browser screenshots are taken via Playwright during the security phase. View them in a timeline, a lightbox, or as a carousel in the console context panel.
 
 ### Business Dev Evaluation
 
-Type something like "evaluate whether we should add real-time collaboration" and the system spawns a Business Dev agent. A progressive card fills in live: Market Research, Competitive Analysis, ICE Score, and a final recommendation of **BUILD**, **DEFER**, or **INVESTIGATE** with reasoning.
+Type something like "evaluate whether we should add real-time collaboration" and the system spawns a Business Dev agent. A progressive card fills in live: Market Research, Competitive Analysis, ICE Score, and a final recommendation of **BUILD**, **DEFER**, or **INVESTIGATE**.
 
 ---
 
@@ -93,10 +89,24 @@ Type something like "evaluate whether we should add real-time collaboration" and
 ┌───────────▼─────────────────────────────────────────────────┐
 │              Orchestrator (Claude Agent SDK)                 │
 │  Developer ─ Developer 2 ─ Tester ─ DevSecOps ─ BizDev      │
+│  Frontend Dev ─ Backend Dev ─ DevOps                         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 The Console sends messages over REST; the backend creates or resumes a conversation, spawns the orchestrator as a subprocess, and streams agent output back to the browser over a WebSocket.
+
+## Agents
+
+| Agent | Role | Specialty |
+|-------|------|-----------|
+| Developer (Primary) | `developer` | Architecture, complex implementations, code review |
+| Developer (Secondary) | `developer-2` | Independent modules, parallel features |
+| Tester | `tester` | Unit/integration tests, coverage analysis |
+| DevSecOps | `devsecops` | Vulnerability scanning, secret detection, dependency audit |
+| Business Dev | `business-dev` | Market analysis, competitive research, ICE scoring |
+| Frontend Dev | `frontend-dev` | React components, styling, UI/UX |
+| Backend Dev | `backend-dev` | API endpoints, services, data models |
+| DevOps | `devops` | Docker, CI/CD, deployment, infrastructure |
 
 ## Routes
 
@@ -104,14 +114,14 @@ The Console sends messages over REST; the backend creates or resumes a conversat
 |------|------|---------|
 | `/setup` | Setup Wizard | First-run auth flow (Claude + GitHub) |
 | `/` | Console | Primary conversational interface |
-| `/dashboard` | Dashboard | Execution overview and pipeline status |
+| `/dashboard` | Dashboard | Execution overview and agent status |
 | `/office` | Agent Office | Live agent node-graph visualization |
 | `/executions/:id` | Execution Detail | Deep dive into a single run |
 | `/agents` | Agents | Agent management and status |
 | `/findings` | Findings | Security and quality findings |
 | `/settings` | Settings | GitHub and Claude Code authentication |
 
-All routes except `/setup` require both Claude and GitHub authentication. Unauthenticated users are redirected to the setup wizard automatically.
+All routes except `/setup` require both Claude and GitHub authentication.
 
 ## API
 
@@ -165,15 +175,15 @@ make stop         # kill the background backend process
 
 ## Workflows
 
-The orchestrator supports five workflows. When you use the Console, it selects the right one automatically based on your message. You can also trigger them explicitly via the API.
+The orchestrator supports five workflows. The Console selects the right one automatically based on your message.
 
 | Workflow | Phases | When to use |
 |----------|--------|-------------|
-| Full Pipeline | Plan > Develop > Test > Security > Report | New features, refactors |
-| Code Review | Plan > Develop + Test + Security (parallel) > Report | PR reviews |
-| Security Audit | Plan > Security > Report | Vulnerability scanning |
-| Feature Eval | Plan > BizDev + Developer > Report | Feasibility and market analysis |
-| Quick Fix | Develop > Test > Report | Small bug fixes |
+| Full Pipeline | Plan → Develop → Test → Security → Report | New features, refactors |
+| Code Review | Plan → Develop + Test + Security (parallel) → Report | PR reviews |
+| Security Audit | Plan → Security → Report | Vulnerability scanning |
+| Feature Eval | Plan → BizDev + Developer → Report | Feasibility and market analysis |
+| Quick Fix | Develop → Test → Report | Small bug fixes |
 
 ## License
 
