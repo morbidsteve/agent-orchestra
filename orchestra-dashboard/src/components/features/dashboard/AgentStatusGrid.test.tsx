@@ -11,6 +11,9 @@ describe('AgentStatusGrid', () => {
     expect(screen.getByText('Tester')).toBeInTheDocument();
     expect(screen.getByText('DevSecOps')).toBeInTheDocument();
     expect(screen.getByText('Business Dev')).toBeInTheDocument();
+    expect(screen.getByText('Frontend Dev')).toBeInTheDocument();
+    expect(screen.getByText('Backend Dev')).toBeInTheDocument();
+    expect(screen.getByText('DevOps')).toBeInTheDocument();
   });
 
   it('shows task counts', () => {

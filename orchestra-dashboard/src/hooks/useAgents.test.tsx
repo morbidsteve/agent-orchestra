@@ -17,7 +17,7 @@ function wrapper({ children }: { children: ReactNode }) {
 describe('useAgents', () => {
   it('returns all agents', () => {
     const { result } = renderHook(() => useAgents(), { wrapper });
-    expect(result.current.agents).toHaveLength(5);
+    expect(result.current.agents).toHaveLength(8);
   });
 
   it('counts busy agents', () => {
@@ -29,6 +29,6 @@ describe('useAgents', () => {
   it('counts online agents', () => {
     const { result } = renderHook(() => useAgents(), { wrapper });
     // business-dev is offline, rest are online
-    expect(result.current.onlineCount).toBe(4);
+    expect(result.current.onlineCount).toBe(7);
   });
 });

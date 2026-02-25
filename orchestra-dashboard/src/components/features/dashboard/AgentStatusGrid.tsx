@@ -7,6 +7,9 @@ import {
   FlaskConical,
   Shield,
   Briefcase,
+  Palette,
+  Server,
+  Container,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -20,12 +23,15 @@ const iconMap: Record<string, LucideIcon> = {
   FlaskConical,
   Shield,
   Briefcase,
+  Palette,
+  Server,
+  Container,
 };
 
 export function AgentStatusGrid({ agents }: AgentStatusGridProps) {
   return (
     <Card header={<h2 className="text-sm font-semibold text-gray-200">Agent Status</h2>}>
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         {agents.map((agent) => {
           const Icon = iconMap[agent.icon] || Terminal;
           return (
