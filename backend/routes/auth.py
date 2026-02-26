@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.services.auth import (
+    claude_logout,
     get_auth_status,
     get_claude_login_status,
     get_login_session_status,
@@ -44,6 +45,12 @@ async def github_login_status() -> dict:
 async def github_logout_route() -> dict:
     """Logout from GitHub."""
     return await github_logout()
+
+
+@router.post("/claude/logout")
+async def claude_logout_route() -> dict:
+    """Logout from Claude."""
+    return await claude_logout()
 
 
 @router.post("/claude/login")
