@@ -285,12 +285,12 @@ async def _handle_user_message(
     from backend.services.sandbox import get_sandbox_status
 
     status = get_sandbox_status()
-    if not status.sandboxed and not status.override_active:
+    if status.execution_mode == "blocked":
         error_msg = _make_message(
             "orchestra",
-            "Agent execution blocked: no container sandbox detected. "
-            "Agents run with --dangerously-skip-permissions and need container isolation. "
-            "Run inside a devcontainer or Docker, or set ORCHESTRA_ALLOW_HOST=true to override.",
+            "Agent execution blocked: no container sandbox and Docker is not available. "
+            "Install Docker to enable automatic containerization, "
+            "or set ORCHESTRA_ALLOW_HOST=true to override.",
             "error",
         )
         conversation["messages"].append(error_msg)

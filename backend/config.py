@@ -19,6 +19,7 @@ class Settings:
     PROJECTS_DIR: str = os.path.expanduser("~/orchestra-projects")
     BROWSE_ROOT: str = os.environ.get("BROWSE_ROOT", "/")
     ALLOW_HOST: bool = os.environ.get("ORCHESTRA_ALLOW_HOST", "").lower() == "true"
+    AGENT_DOCKER_IMAGE: str = os.environ.get("AGENT_DOCKER_IMAGE", "agent-orchestra:latest")
 
 
 settings = Settings()

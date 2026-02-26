@@ -198,6 +198,8 @@ export interface EnvironmentResponse {
   sandboxed: boolean;
   container_type: string | null;
   override_active: boolean;
+  docker_available: boolean;
+  execution_mode: 'native' | 'docker-wrap' | 'host-override' | 'blocked';
 }
 
 export function fetchEnvironment(): Promise<EnvironmentResponse> {
