@@ -274,8 +274,16 @@ async def run_dynamic_execution(execution_id: str) -> None:
         print(f"[DYNAMIC] Claude CLI started (pid={process.pid})", flush=True)
 
         output_lines: list[str] = []
+        stream_stats: dict[str, Any] = {
+            "total_lines": 0,
+            "json_msgs": 0,
+            "plain_text": 0,
+            "broadcast_calls": 0,
+            "msg_types": {},
+        }
 
         async def read_stream() -> None:
+            nonlocal stream_stats
             assert process.stdout is not None
             while True:
                 line = await process.stdout.readline()
@@ -285,23 +293,39 @@ async def run_dynamic_execution(execution_id: str) -> None:
                 if not text:
                     continue
 
+                stream_stats["total_lines"] += 1
+
                 try:
                     msg = json.loads(text)
                 except json.JSONDecodeError:
                     # Plain text output
+                    stream_stats["plain_text"] += 1
+                    logger.info("[read_stream] Plain text: %s", text[:100])
                     output_lines.append(text)
+                    stream_stats["broadcast_calls"] += 1
                     await _broadcast_output(execution_id, text, "orchestrator")
                     continue
 
+                stream_stats["json_msgs"] += 1
                 msg_type = msg.get("type", "")
+                stream_stats["msg_types"][msg_type] = stream_stats["msg_types"].get(msg_type, 0) + 1
+                logger.info("[read_stream] JSON msg type=%s", msg_type)
 
                 if msg_type == "assistant":
                     # Extract text content from assistant messages
-                    for block in msg.get("message", {}).get("content", []):
+                    content_blocks = msg.get("message", {}).get("content", [])
+                    block_types = [b.get("type", "unknown") for b in content_blocks]
+                    logger.info(
+                        "[read_stream] assistant: %d content block(s), types=%s",
+                        len(content_blocks),
+                        block_types,
+                    )
+                    for block in content_blocks:
                         if block.get("type") == "text":
                             for line_text in block["text"].split("\n"):
                                 if line_text.strip():
                                     output_lines.append(line_text)
+                                    stream_stats["broadcast_calls"] += 1
                                     await _broadcast_output(execution_id, line_text, "orchestrator")
                         elif block.get("type") == "tool_use":
                             tool_name = block.get("name", "")
@@ -314,15 +338,18 @@ async def run_dynamic_execution(execution_id: str) -> None:
                                     f"{tool_input.get('task', '')[:100]}"
                                 )
                                 output_lines.append(agent_info)
+                                stream_stats["broadcast_calls"] += 1
                                 await _broadcast_output(execution_id, agent_info, "orchestrator")
 
                 elif msg_type == "result":
                     # Final result
                     result_text = msg.get("result", "")
                     if isinstance(result_text, str):
+                        logger.info("[read_stream] result: text length=%d", len(result_text))
                         for line_text in result_text.split("\n"):
                             if line_text.strip():
                                 output_lines.append(line_text)
+                                stream_stats["broadcast_calls"] += 1
                                 await _broadcast_output(execution_id, line_text, "orchestrator")
 
                     # Check for findings in recent output
@@ -338,6 +365,8 @@ async def run_dynamic_execution(execution_id: str) -> None:
             process.kill()
             output_lines.append("[Orchestrator timed out after 30 minutes]")
             await _broadcast_output(execution_id, "[Orchestrator timed out]", "orchestrator")
+
+        print(f"[DYNAMIC] Stream stats: {stream_stats}", flush=True)
 
         await process.wait()
 
@@ -372,11 +401,13 @@ async def run_dynamic_execution(execution_id: str) -> None:
             "status": status,
             "filesModified": list(set(all_files)),
         }
+        print(f"[DYNAMIC] Broadcasting completion: status={status}, output_lines={len(output_lines)}, files={len(all_files)}", flush=True)
         await store.broadcast(execution_id, complete_msg)
         # Also broadcast completion to console WebSocket
         for conv in store.conversations.values():
             if conv.get("activeExecutionId") == execution_id:
                 await store.broadcast_console(conv["id"], complete_msg)
+                print(f"[DYNAMIC] Broadcast completion to console conv={conv['id']}", flush=True)
                 # Add a result summary message to the conversation
                 summary = "\n".join(output_lines[-10:]) if output_lines else "Execution completed."
                 response_msg = {
@@ -727,6 +758,8 @@ async def _broadcast_output(execution_id: str, text: str, phase: str) -> None:
     """Broadcast output line to execution and linked console WebSockets."""
     msg = {"type": "output", "line": text, "phase": phase}
     await store.broadcast(execution_id, msg)
+    exec_ws_count = len(store.websocket_connections.get(execution_id, set()))
+    logger.info("_broadcast_output: exec=%s → %d exec WS client(s)", execution_id, exec_ws_count)
     # Also broadcast as console-text to linked conversations
     console_msg = {
         "type": "console-text",
@@ -738,7 +771,9 @@ async def _broadcast_output(execution_id: str, text: str, phase: str) -> None:
         if conv.get("activeExecutionId") == execution_id:
             await store.broadcast_console(conv["id"], console_msg)
             sent_to += 1
-    if sent_to == 0:
+    if sent_to > 0:
+        logger.info("_broadcast_output: exec=%s → %d conversation(s), text=%s", execution_id, sent_to, text[:80])
+    else:
         logger.warning(
             "_broadcast_output: no linked conversation found for exec %s",
             execution_id,

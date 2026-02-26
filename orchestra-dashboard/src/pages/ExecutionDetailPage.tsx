@@ -17,7 +17,7 @@ export function ExecutionDetailPage() {
 
   // Subscribe to WebSocket for live updates on running executions
   const isRunning = execution?.status === 'running' || execution?.status === 'queued';
-  const { lines: liveLines, connected, pendingQuestion, sendAnswer } = useWebSocket(isRunning ? id ?? null : null);
+  const { lines: liveLines, connected, pendingQuestion, sendAnswer } = useWebSocket(id ?? null);
 
   if (!execution) {
     return (
