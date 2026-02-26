@@ -18,6 +18,7 @@ class Settings:
     DEFAULT_MODEL: str = "sonnet"
     PROJECTS_DIR: str = os.path.expanduser("~/orchestra-projects")
     BROWSE_ROOT: str = os.environ.get("BROWSE_ROOT", "/")
+    ALLOW_HOST: bool = os.environ.get("ORCHESTRA_ALLOW_HOST", "").lower() == "true"
 
 
 settings = Settings()

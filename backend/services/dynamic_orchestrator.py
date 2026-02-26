@@ -163,6 +163,17 @@ async def run_dynamic_execution(execution_id: str) -> None:
         print(f"[DYNAMIC] execution {execution_id} NOT FOUND in store!", flush=True)
         return
 
+    from backend.services.sandbox import require_sandbox
+
+    try:
+        require_sandbox("run_dynamic_execution")
+    except RuntimeError as exc:
+        execution["status"] = "failed"
+        execution["completedAt"] = datetime.now(timezone.utc).isoformat()
+        await _broadcast_output(execution_id, f"[Sandbox] {exc}", "orchestrator")
+        await store.broadcast(execution_id, {"type": "complete", "status": "failed"})
+        return
+
     execution["status"] = "running"
     execution["startedAt"] = datetime.now(timezone.utc).isoformat()
     await store.broadcast(execution_id, {"type": "phase", "phase": "orchestrator", "status": "running"})
@@ -360,6 +371,23 @@ async def launch_agent_subprocess(execution_id: str, agent_id: str) -> None:
     agents = store.dynamic_agents.get(execution_id, {})
     agent = agents.get(agent_id)
     if not agent:
+        return
+
+    from backend.services.sandbox import require_sandbox
+
+    try:
+        require_sandbox("launch_agent_subprocess")
+    except RuntimeError as exc:
+        agent["status"] = "failed"
+        agent["output"].append(f"[Sandbox] {exc}")
+        agent["completedAt"] = datetime.now(timezone.utc).isoformat()
+        if "result_event" in agent:
+            agent["result_event"].set()
+        await _broadcast_agent_event(execution_id, agent_id, "agent-complete", {
+            "agentId": agent_id,
+            "status": "failed",
+            "filesModified": [],
+        })
         return
 
     agent["status"] = "running"

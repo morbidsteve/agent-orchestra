@@ -28,7 +28,24 @@ from backend.routes import (
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan — initialize state on startup."""
+    import logging
+
+    from backend.services.sandbox import get_sandbox_status
+
     store.init_agents()
+
+    status = get_sandbox_status()
+    logger = logging.getLogger("backend.main")
+    if status.sandboxed:
+        logger.info("Sandbox: running inside %s — agents enabled", status.container_type)
+    elif status.override_active:
+        logger.warning("Sandbox: NOT in a container but ORCHESTRA_ALLOW_HOST=true — agents enabled (unsafe)")
+    else:
+        logger.warning(
+            "Sandbox: NOT in a container — agent execution will be BLOCKED. "
+            "Use a devcontainer/Docker or set ORCHESTRA_ALLOW_HOST=true to override."
+        )
+
     yield
 
 

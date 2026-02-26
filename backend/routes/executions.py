@@ -108,6 +108,19 @@ async def get_execution(execution_id: str) -> dict:
 @router.post("/", status_code=201)
 async def create_execution(req: CreateExecutionRequest) -> dict:
     """Create a new execution and launch it as a background task."""
+    from backend.services.sandbox import get_sandbox_status
+
+    status = get_sandbox_status()
+    if not status.sandboxed and not status.override_active:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Agent execution blocked: no container sandbox detected. "
+                "Agents run with --dangerously-skip-permissions and need container isolation. "
+                "Run inside a devcontainer or Docker, or set ORCHESTRA_ALLOW_HOST=true to override."
+            ),
+        )
+
     exec_id = store.next_execution_id()
     now = datetime.now(timezone.utc).isoformat()
 
