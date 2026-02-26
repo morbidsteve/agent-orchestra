@@ -792,3 +792,27 @@ async def _broadcast_agent_event(
     for conv in store.conversations.values():
         if conv.get("activeExecutionId") == execution_id:
             await store.broadcast_console(conv["id"], msg)
+            # Also pipe agent events as console-text so they appear in
+            # the Progress streaming output (not just the Agents tab)
+            if event_type == "agent-output" and data.get("line"):
+                await store.broadcast_console(conv["id"], {
+                    "type": "console-text",
+                    "text": data["line"],
+                    "messageId": f"agent-{uuid.uuid4().hex[:8]}",
+                })
+            elif event_type == "agent-spawn":
+                label = data.get("name") or agent_id
+                task = data.get("task", "")
+                spawn_text = f"[Agent: {label}] Starting: {task}" if task else f"[Agent: {label}] Starting..."
+                await store.broadcast_console(conv["id"], {
+                    "type": "console-text",
+                    "text": spawn_text,
+                    "messageId": f"agent-{uuid.uuid4().hex[:8]}",
+                })
+            elif event_type == "agent-complete":
+                label = data.get("name") or agent_id
+                await store.broadcast_console(conv["id"], {
+                    "type": "console-text",
+                    "text": f"[Agent: {label}] Completed",
+                    "messageId": f"agent-{uuid.uuid4().hex[:8]}",
+                })
