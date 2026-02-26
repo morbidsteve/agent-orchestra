@@ -120,6 +120,7 @@ function SessionViewInner({
           fileTree={fileTree}
           activeFiles={activeFiles}
           dynamicAgents={dynamicAgents}
+          pendingQuestion={ws.pendingQuestion}
         />
       );
     case 'office':

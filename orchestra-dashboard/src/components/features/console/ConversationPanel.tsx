@@ -1,7 +1,9 @@
 import { useRef, useEffect } from 'react';
 import type { ConversationMessage } from '../../../lib/types.ts';
+import type { PendingClarification } from '../../../hooks/useConsoleWebSocket.ts';
 import { useSessionContext } from '../../../context/SessionContext.tsx';
 import { MessageBubble } from './MessageBubble.tsx';
+import { ClarificationCard } from './ClarificationCard.tsx';
 import { ConsoleInput } from './ConsoleInput.tsx';
 import { SessionConfigBar } from './SessionConfigBar.tsx';
 
@@ -10,6 +12,7 @@ interface ConversationPanelProps {
   onSend: (text: string) => void;
   isLoading: boolean;
   onClarificationReply?: (answer: string) => void;
+  pendingQuestion?: PendingClarification | null;
 }
 
 export function ConversationPanel({
@@ -17,6 +20,7 @@ export function ConversationPanel({
   onSend,
   isLoading,
   onClarificationReply,
+  pendingQuestion,
 }: ConversationPanelProps) {
   const { model, setModel, githubUrl, setGithubUrl, folderPath, setFolderPath } = useSessionContext();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -67,6 +71,18 @@ export function ConversationPanel({
             onModelChange={setModel}
             onGithubUrlChange={setGithubUrl}
             onFolderPathChange={setFolderPath}
+          />
+        </div>
+      )}
+
+      {/* Pending clarification card */}
+      {pendingQuestion && onClarificationReply && (
+        <div className="px-4 pb-3">
+          <ClarificationCard
+            question={pendingQuestion.question}
+            options={pendingQuestion.options}
+            required={pendingQuestion.required}
+            onReply={onClarificationReply}
           />
         </div>
       )}
