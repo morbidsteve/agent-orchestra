@@ -229,10 +229,12 @@ async def system_update(body: UpdateRequest | None = None) -> JSONResponse:
             )
 
     # 3. Reinstall Python deps (if requirements.txt exists)
+    # Use sys.executable -m pip to ensure we use the correct Python's pip,
+    # even in venvs where a bare `pip` may not be on PATH.
     requirements = APP_DIR / "requirements.txt"
     if requirements.exists():
         rc, err = await _run(
-            ["pip", "install", "--user", "-q", "-r", str(requirements)],
+            [sys.executable, "-m", "pip", "install", "-q", "-r", str(requirements)],
         )
         if rc != 0:
             return JSONResponse(
