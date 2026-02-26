@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import type { WsConsoleMessage } from '../lib/types.ts';
 
 export interface WsOutputMessage {
   type: 'output';
@@ -64,6 +65,7 @@ export type WsMessage = WsOutputMessage | WsPhaseMessage | WsFindingMessage | Ws
 
 interface UseWebSocketResult {
   lines: string[];
+  messages: WsConsoleMessage[];
   currentPhase: string | null;
   status: string | null;
   connected: boolean;
@@ -73,6 +75,7 @@ interface UseWebSocketResult {
 
 export function useWebSocket(executionId: string | null): UseWebSocketResult {
   const [lines, setLines] = useState<string[]>([]);
+  const [messages, setMessages] = useState<WsConsoleMessage[]>([]);
   const [currentPhase, setCurrentPhase] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
@@ -85,6 +88,7 @@ export function useWebSocket(executionId: string | null): UseWebSocketResult {
   if (prevId !== executionId) {
     setPrevId(executionId);
     setLines([]);
+    setMessages([]);
     setCurrentPhase(null);
     setStatus(null);
     setPendingQuestion(null);
@@ -121,6 +125,7 @@ export function useWebSocket(executionId: string | null): UseWebSocketResult {
       ws.onmessage = (event: MessageEvent) => {
         if (cleaned) return;
         const msg = JSON.parse(event.data as string) as WsMessage;
+        setMessages(prev => [...prev, msg as unknown as WsConsoleMessage]);
         switch (msg.type) {
           case 'output':
             setLines(prev => [...prev, msg.line]);
@@ -207,5 +212,5 @@ export function useWebSocket(executionId: string | null): UseWebSocketResult {
     };
   }, [executionId]);
 
-  return { lines, currentPhase, status, connected, pendingQuestion, sendAnswer };
+  return { lines, messages, currentPhase, status, connected, pendingQuestion, sendAnswer };
 }
