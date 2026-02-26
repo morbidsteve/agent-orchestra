@@ -154,6 +154,7 @@ interface SessionContextValue {
 
   sendMessage: (text: string) => Promise<void>;
   startConversation: (text: string, projectSource?: ProjectSource, model?: string) => Promise<void>;
+  refreshConversation: () => Promise<void>;
 
   model: string;
   setModel: (model: string) => void;
@@ -330,6 +331,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [activeSession]);
 
+  const refreshConversation = useCallback(async () => {
+    if (!activeSession?.conversationId) return;
+    try {
+      const conv = await fetchConversation(activeSession.conversationId);
+      dispatch({
+        type: 'UPDATE_SESSION',
+        id: activeSession.id,
+        updates: { conversation: conv, messages: conv.messages },
+      });
+    } catch {
+      /* silently fail — stale messages are better than a crash */
+    }
+  }, [activeSession]);
+
   const sendMessage = useCallback(async (text: string) => {
     if (!activeSession) return;
 
@@ -371,6 +386,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     sendMessage,
     startConversation,
+    refreshConversation,
 
     model: activeSession?.model ?? 'sonnet',
     setModel,
@@ -386,7 +402,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }), [
     activeSession, state.sessions, state.activeSessionId,
     createSessionAction, closeSession, switchSession, setActiveView,
-    sendMessage, startConversation,
+    sendMessage, startConversation, refreshConversation,
     setModel, setGithubUrl, setFolderPath,
   ]);
 
