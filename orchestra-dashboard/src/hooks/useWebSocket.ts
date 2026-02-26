@@ -39,7 +39,28 @@ export interface WsClarificationMessage {
   required: boolean;
 }
 
-export type WsMessage = WsOutputMessage | WsPhaseMessage | WsFindingMessage | WsCompleteMessage | WsClarificationMessage | WsExecutionSnapshotMessage;
+export interface WsAgentSpawnMessage {
+  type: 'agent-spawn';
+  agent?: { id?: string; name?: string; task?: string };
+  agentId?: string;
+  name?: string;
+  task?: string;
+}
+
+export interface WsAgentOutputMessage {
+  type: 'agent-output';
+  agentId?: string;
+  line: string;
+}
+
+export interface WsAgentCompleteMessage {
+  type: 'agent-complete';
+  agentId?: string;
+  name?: string;
+  status?: string;
+}
+
+export type WsMessage = WsOutputMessage | WsPhaseMessage | WsFindingMessage | WsCompleteMessage | WsClarificationMessage | WsExecutionSnapshotMessage | WsAgentSpawnMessage | WsAgentOutputMessage | WsAgentCompleteMessage;
 
 interface UseWebSocketResult {
   lines: string[];
@@ -115,6 +136,27 @@ export function useWebSocket(executionId: string | null): UseWebSocketResult {
           case 'clarification':
             setPendingQuestion(msg as WsClarificationMessage);
             break;
+          case 'agent-spawn': {
+            const spawn = msg as WsAgentSpawnMessage;
+            const label = spawn.agent?.name ?? spawn.name ?? spawn.agent?.id ?? spawn.agentId ?? 'agent';
+            const task = spawn.agent?.task ?? spawn.task ?? '';
+            const spawnText = task ? `[Agent: ${label}] Starting: ${task}` : `[Agent: ${label}] Starting...`;
+            setLines(prev => [...prev, spawnText]);
+            break;
+          }
+          case 'agent-output': {
+            const ao = msg as WsAgentOutputMessage;
+            if (ao.line) {
+              setLines(prev => [...prev, ao.line]);
+            }
+            break;
+          }
+          case 'agent-complete': {
+            const ac = msg as WsAgentCompleteMessage;
+            const name = ac.name ?? ac.agentId ?? 'agent';
+            setLines(prev => [...prev, `[Agent: ${name}] Completed`]);
+            break;
+          }
           case 'execution-snapshot': {
             const snap = (msg as WsExecutionSnapshotMessage).execution;
             if (snap) {
