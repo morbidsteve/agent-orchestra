@@ -19,12 +19,12 @@ else
 endif
 
 ## setup: Install all dependencies (Python venv + Node modules)
-setup: $(VENV)/bin/activate
+setup: $(VENV)/bin/python
 	$(PIP_INSTALL) -r requirements.txt
 	$(PIP_INSTALL) -r $(BACKEND)/requirements.txt
 	cd $(FRONTEND) && npm install
 
-$(VENV)/bin/activate:
+$(VENV)/bin/python:
 	$(VENV_CREATE)
 
 ## dev: Start backend (background) + frontend (foreground)
