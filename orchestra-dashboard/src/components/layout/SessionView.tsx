@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSessionContext } from '../../context/SessionContext.tsx';
 import { useConsoleWebSocket } from '../../hooks/useConsoleWebSocket.ts';
 import { useDynamicAgents } from '../../hooks/useDynamicAgents.ts';
@@ -17,6 +17,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
     sessions,
     sendMessage,
     startConversation,
+    refreshConversation,
   } = useSessionContext();
 
   const session = sessions.find(s => s.id === sessionId);
@@ -36,6 +37,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
       isLoading={session.isLoading}
       sendMessage={sendMessage}
       startConversation={startConversation}
+      onExecutionComplete={refreshConversation}
     />
   );
 }
@@ -49,6 +51,7 @@ interface SessionViewInnerProps {
   isLoading: boolean;
   sendMessage: (text: string) => Promise<void>;
   startConversation: (text: string, projectSource?: import('../../lib/types.ts').ProjectSource, model?: string) => Promise<void>;
+  onExecutionComplete: () => Promise<void>;
 }
 
 function SessionViewInner({
@@ -60,11 +63,22 @@ function SessionViewInner({
   isLoading,
   sendMessage,
   startConversation,
+  onExecutionComplete,
 }: SessionViewInnerProps) {
   const ws = useConsoleWebSocket(conversationId);
   const { agents: dynamicAgents, fileTree, activeFiles } = useDynamicAgents(ws.messages);
   const officeState = useOfficeState(executionId);
   const { latest } = useExecutions();
+
+  // Re-fetch conversation when execution completes so summary messages appear
+  const prevStatusRef = useRef(ws.executionStatus);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = ws.executionStatus;
+    if (prev === 'running' && (ws.executionStatus === 'completed' || ws.executionStatus === 'failed')) {
+      void onExecutionComplete();
+    }
+  }, [ws.executionStatus, onExecutionComplete]);
 
   const handleSend = useCallback(async (text: string) => {
     if (conversation) {

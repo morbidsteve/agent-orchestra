@@ -7,11 +7,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import tempfile
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from agents.business_dev import BUSINESS_DEV
 from agents.developer import DEVELOPER_PRIMARY, DEVELOPER_SECONDARY
@@ -171,7 +175,12 @@ async def run_dynamic_execution(execution_id: str) -> None:
         execution["status"] = "failed"
         execution["completedAt"] = datetime.now(timezone.utc).isoformat()
         await _broadcast_output(execution_id, f"[Sandbox] {exc}", "orchestrator")
-        await store.broadcast(execution_id, {"type": "complete", "status": "failed"})
+        sandbox_fail_msg = {"type": "complete", "status": "failed"}
+        await store.broadcast(execution_id, sandbox_fail_msg)
+        # Also broadcast sandbox failure to console WebSocket
+        for conv in store.conversations.values():
+            if conv.get("activeExecutionId") == execution_id:
+                await store.broadcast_console(conv["id"], sandbox_fail_msg)
         return
 
     execution["status"] = "running"
@@ -243,7 +252,12 @@ async def run_dynamic_execution(execution_id: str) -> None:
                 execution["status"] = "failed"
                 execution["completedAt"] = datetime.now(timezone.utc).isoformat()
                 await _broadcast_output(execution_id, "[Docker] Failed to build agent image", "orchestrator")
-                await store.broadcast(execution_id, {"type": "complete", "status": "failed"})
+                docker_fail_msg = {"type": "complete", "status": "failed"}
+                await store.broadcast(execution_id, docker_fail_msg)
+                # Also broadcast Docker failure to console WebSocket
+                for conv in store.conversations.values():
+                    if conv.get("activeExecutionId") == execution_id:
+                        await store.broadcast_console(conv["id"], docker_fail_msg)
                 return
             cmd, env, work_dir = wrap_command_in_docker(cmd, env, work_dir, mcp_config_path)
 
@@ -353,11 +367,31 @@ async def run_dynamic_execution(execution_id: str) -> None:
         for agent in store.dynamic_agents.get(execution_id, {}).values():
             all_files.extend(agent.get("filesModified", []))
 
-        await store.broadcast(execution_id, {
+        complete_msg = {
             "type": "complete",
             "status": status,
             "filesModified": list(set(all_files)),
-        })
+        }
+        await store.broadcast(execution_id, complete_msg)
+        # Also broadcast completion to console WebSocket
+        for conv in store.conversations.values():
+            if conv.get("activeExecutionId") == execution_id:
+                await store.broadcast_console(conv["id"], complete_msg)
+                # Add a result summary message to the conversation
+                summary = "\n".join(output_lines[-10:]) if output_lines else "Execution completed."
+                response_msg = {
+                    "id": f"msg-{uuid.uuid4().hex[:8]}",
+                    "role": "orchestra",
+                    "contentType": "text",
+                    "text": summary,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "executionRef": execution_id,
+                }
+                conv["messages"].append(response_msg)
+                await store.broadcast_console(conv["id"], {
+                    "type": "conversation-update",
+                    "message": response_msg,
+                })
 
     except FileNotFoundError:
         print("[DYNAMIC] Claude CLI not found — will fall back", flush=True)
@@ -369,7 +403,12 @@ async def run_dynamic_execution(execution_id: str) -> None:
         execution["status"] = "failed"
         execution["completedAt"] = datetime.now(timezone.utc).isoformat()
         await _broadcast_output(execution_id, "[Orchestrator error]", "orchestrator")
-        await store.broadcast(execution_id, {"type": "complete", "status": "failed"})
+        error_complete_msg = {"type": "complete", "status": "failed"}
+        await store.broadcast(execution_id, error_complete_msg)
+        # Also broadcast failure to console WebSocket
+        for conv in store.conversations.values():
+            if conv.get("activeExecutionId") == execution_id:
+                await store.broadcast_console(conv["id"], error_complete_msg)
     finally:
         if mcp_config_path and os.path.exists(mcp_config_path):
             os.unlink(mcp_config_path)
@@ -689,10 +728,21 @@ async def _broadcast_output(execution_id: str, text: str, phase: str) -> None:
     msg = {"type": "output", "line": text, "phase": phase}
     await store.broadcast(execution_id, msg)
     # Also broadcast as console-text to linked conversations
-    console_msg = {"type": "console-text", "text": text}
+    console_msg = {
+        "type": "console-text",
+        "text": text,
+        "messageId": f"out-{uuid.uuid4().hex[:8]}",
+    }
+    sent_to = 0
     for conv in store.conversations.values():
         if conv.get("activeExecutionId") == execution_id:
             await store.broadcast_console(conv["id"], console_msg)
+            sent_to += 1
+    if sent_to == 0:
+        logger.warning(
+            "_broadcast_output: no linked conversation found for exec %s",
+            execution_id,
+        )
 
 
 async def _broadcast_agent_event(
