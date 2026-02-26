@@ -188,10 +188,15 @@ def wrap_command_in_docker(
     # Volume mounts
     docker_cmd.extend(["-v", f"{cwd}:/workspace"])
 
-    # Mount Claude credentials
+    # Mount Claude credentials directory
     claude_dir = Path.home() / ".claude"
     if claude_dir.exists():
         docker_cmd.extend(["-v", f"{claude_dir}:/home/orchestra/.claude:ro"])
+
+    # Mount Claude CLI config file (~/.claude.json is separate from ~/.claude/)
+    claude_json = Path.home() / ".claude.json"
+    if claude_json.exists():
+        docker_cmd.extend(["-v", f"{claude_json}:/home/orchestra/.claude.json:ro"])
 
     # Mount GitHub credentials (read-only)
     gh_dir = Path.home() / ".config" / "gh"
@@ -212,9 +217,13 @@ def wrap_command_in_docker(
     # Image
     docker_cmd.append(image)
 
-    # The actual command — rewrite mcp config path in args if needed
-    for arg in cmd:
-        if mcp_config_path and arg == mcp_config_path and rewritten_mcp_path:
+    # The actual command — normalize binary path and rewrite mcp config path
+    for i, arg in enumerate(cmd):
+        if i == 0:
+            # cmd[0] may be a host-specific path like /Users/.../bin/claude.
+            # Inside the container, use just the binary name.
+            docker_cmd.append(Path(arg).name)
+        elif mcp_config_path and arg == mcp_config_path and rewritten_mcp_path:
             docker_cmd.append(rewritten_mcp_path)
         else:
             docker_cmd.append(arg)
