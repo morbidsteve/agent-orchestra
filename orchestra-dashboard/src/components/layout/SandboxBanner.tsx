@@ -26,13 +26,12 @@ export function SandboxBanner() {
   }, []);
 
   // Render nothing for safe/loading/error states
-  if (state === 'loading' || state === 'sandboxed' || state === 'error') {
+  if (state === 'loading' || state === 'sandboxed' || state === 'error' || dismissed) {
     return null;
   }
 
-  // Override banner (amber, dismissible)
+  // Override banner (amber) — agents enabled without container
   if (state === 'override') {
-    if (dismissed) return null;
     return (
       <div
         role="alert"
@@ -53,16 +52,24 @@ export function SandboxBanner() {
     );
   }
 
-  // Blocked banner (red, non-dismissible)
+  // Blocked banner (amber, dismissible) — dashboard works, agents don't
   return (
     <div
       role="alert"
-      className="flex items-center gap-3 bg-red-900/80 border-b border-red-700 px-4 py-2 text-red-200 text-sm"
+      className="flex items-center gap-3 bg-amber-900/80 border-b border-amber-700 px-4 py-2 text-amber-200 text-sm"
     >
       <ShieldAlert className="h-4 w-4 shrink-0" />
       <span className="flex-1">
-        No container sandbox detected. Agent execution is blocked. Run inside a devcontainer or Docker to enable agents.
+        No container detected — the dashboard works normally but agent execution is disabled.
+        Use a devcontainer or Docker to enable agents, or set ORCHESTRA_ALLOW_HOST=true to override.
       </span>
+      <button
+        onClick={() => setDismissed(true)}
+        className="shrink-0 p-1 rounded hover:bg-amber-800 transition-colors"
+        aria-label="Dismiss warning"
+      >
+        <X className="h-4 w-4" />
+      </button>
     </div>
   );
 }
