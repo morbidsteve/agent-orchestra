@@ -297,4 +297,10 @@ echo "  * Backend will start on http://localhost:8000"
 echo "  * Frontend will start on http://localhost:5173"
 echo ""
 
+# Clean up broken venv if it exists
+if [ -d ".venv" ] && [ ! -x ".venv/bin/python" ]; then
+    warn "Found broken .venv (no python binary) — removing and recreating"
+    rm -rf .venv
+fi
+
 make
