@@ -89,7 +89,9 @@ export function AgentPopup({ agent, output, files, onClose, position }: AgentPop
           backgroundColor: '#252830',
           border: '1px solid #3a3d45',
           borderRadius: '12px',
-          overflow: 'hidden',
+          maxHeight: '380px',
+          overflowY: 'auto',
+          overflowX: 'hidden',
         }}
       >
         {/* Header */}
