@@ -16,6 +16,7 @@ export function SettingsPage() {
     startClaudeAuth,
     submitClaudeCode,
     logout,
+    claudeLogout,
   } = useAuthStatus();
   const [githubError, setGithubError] = useState<string | null>(null);
   const [claudeError, setClaudeError] = useState<string | null>(null);
@@ -71,6 +72,7 @@ export function SettingsPage() {
         loading={loading}
         claudeLoginInProgress={claudeLoginInProgress}
         onLogin={() => void handleClaudeLogin()}
+        onLogout={() => void claudeLogout()}
         onSubmitCode={handleSubmitClaudeCode}
         error={claudeError}
       />

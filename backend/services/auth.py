@@ -364,6 +364,22 @@ async def github_logout() -> dict:
         return {"success": False, "error": "Failed to logout"}
 
 
+async def claude_logout() -> dict:
+    """Log out of Claude by removing the credentials file."""
+    global _claude_login_session
+    _claude_login_session = None
+
+    cred_path = _CLAUDE_CREDENTIALS_PATH
+    try:
+        if os.path.isfile(cred_path):
+            os.unlink(cred_path)
+            logger.info("Claude logout: removed credentials at %s", cred_path)
+        return {"success": True}
+    except OSError as exc:
+        logger.error("Claude logout: failed to remove credentials: %s", exc)
+        return {"success": False, "error": str(exc)}
+
+
 # ---------------------------------------------------------------------------
 # Claude Code OAuth login (direct PKCE — no CLI subprocess)
 # ---------------------------------------------------------------------------

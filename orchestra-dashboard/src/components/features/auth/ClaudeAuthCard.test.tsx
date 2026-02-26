@@ -19,6 +19,16 @@ const connectedAuthNoEmail: AuthStatus = {
   claude: { authenticated: true },
 };
 
+const connectedNoCredentialsFile: AuthStatus = {
+  github: { authenticated: false, username: null },
+  claude: { authenticated: true, email: 'user@example.com', hasCredentialsFile: false },
+};
+
+const connectedWithCredentialsFile: AuthStatus = {
+  github: { authenticated: false, username: null },
+  claude: { authenticated: true, email: 'user@example.com', hasCredentialsFile: true },
+};
+
 describe('ClaudeAuthCard', () => {
   // ── Default (card) mode ─────────────────────────────────────────────
 
@@ -216,5 +226,75 @@ describe('ClaudeAuthCard', () => {
       />,
     );
     expect(screen.getByText('CLI not installed')).toBeInTheDocument();
+  });
+
+  // ── Reconnect for Docker state ──────────────────────────────────────
+
+  it('shows Reconnect button when authenticated but hasCredentialsFile is false', async () => {
+    const onLogin = vi.fn();
+    render(
+      <ClaudeAuthCard
+        authStatus={connectedNoCredentialsFile}
+        claudeLoginSession={null}
+        loading={false}
+        claudeLoginInProgress={false}
+        onLogin={onLogin}
+        error={null}
+        compact
+      />,
+    );
+    expect(screen.getByText(/agents running in Docker need a credentials file/)).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: 'Reconnect for Docker' });
+    expect(button).toBeInTheDocument();
+    await userEvent.click(button);
+    expect(onLogin).toHaveBeenCalledOnce();
+  });
+
+  it('shows normal authenticated state when hasCredentialsFile is true', () => {
+    render(
+      <ClaudeAuthCard
+        authStatus={connectedWithCredentialsFile}
+        claudeLoginSession={null}
+        loading={false}
+        claudeLoginInProgress={false}
+        onLogin={vi.fn()}
+        error={null}
+        compact
+      />,
+    );
+    expect(screen.getByText('user@example.com')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reconnect for Docker' })).not.toBeInTheDocument();
+  });
+
+  it('shows normal authenticated state when hasCredentialsFile is undefined (backward compat)', () => {
+    render(
+      <ClaudeAuthCard
+        authStatus={connectedAuthNoEmail}
+        claudeLoginSession={null}
+        loading={false}
+        claudeLoginInProgress={false}
+        onLogin={vi.fn()}
+        error={null}
+        compact
+      />,
+    );
+    expect(screen.getByText('Claude Code CLI is authenticated and ready.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reconnect for Docker' })).not.toBeInTheDocument();
+  });
+
+  it('shows error message alongside Reconnect button when error prop is set', () => {
+    render(
+      <ClaudeAuthCard
+        authStatus={connectedNoCredentialsFile}
+        claudeLoginSession={null}
+        loading={false}
+        claudeLoginInProgress={false}
+        onLogin={vi.fn()}
+        error="OAuth flow failed"
+        compact
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Reconnect for Docker' })).toBeInTheDocument();
+    expect(screen.getByText('OAuth flow failed')).toBeInTheDocument();
   });
 });

@@ -73,6 +73,10 @@ export function githubLogout(): Promise<{ success: boolean }> {
   return apiFetch<{ success: boolean }>('/api/auth/github/logout', { method: 'POST' });
 }
 
+export function claudeLogout(): Promise<{ success: boolean }> {
+  return apiFetch<{ success: boolean }>('/api/auth/claude/logout', { method: 'POST' });
+}
+
 export function startClaudeLogin(): Promise<ClaudeLoginResponse> {
   return apiFetch<ClaudeLoginResponse>('/api/auth/claude/login', { method: 'POST' });
 }

@@ -9,6 +9,7 @@ export interface ClaudeAuthCardProps {
   loading: boolean;
   claudeLoginInProgress: boolean;
   onLogin: () => void;
+  onLogout?: () => void;
   onSubmitCode?: (code: string) => Promise<void>;
   error: string | null;
   compact?: boolean;
@@ -77,6 +78,7 @@ export function ClaudeAuthCard({
   loading,
   claudeLoginInProgress,
   onLogin,
+  onLogout,
   onSubmitCode,
   error,
   compact = false,
@@ -92,15 +94,44 @@ export function ClaudeAuthCard({
           Checking status...
         </div>
       ) : claudeConnected ? (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-300">
-            {authStatus?.claude?.email ? (
-              <>Authenticated as <span className="font-medium text-gray-100">{authStatus.claude.email}</span></>
-            ) : (
-              <>Claude Code CLI is authenticated and ready.</>
+        authStatus?.claude?.hasCredentialsFile === false ? (
+          <div className="space-y-3">
+            <p className="text-sm text-amber-400">
+              Authenticated via CLI, but agents running in Docker need a credentials file.
+              Click Reconnect to authorize and create it.
+            </p>
+            <button
+              onClick={() => void onLogin()}
+              className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-500 transition-colors"
+            >
+              Reconnect for Docker
+            </button>
+            {error && (
+              <div className="flex items-center gap-2 text-sm text-red-400">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {error}
+              </div>
             )}
-          </p>
-        </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-300">
+              {authStatus?.claude?.email ? (
+                <>Authenticated as <span className="font-medium text-gray-100">{authStatus.claude.email}</span></>
+              ) : (
+                <>Claude Code CLI is authenticated and ready.</>
+              )}
+            </p>
+            {onLogout && (
+              <button
+                onClick={() => void onLogout()}
+                className="rounded-lg border border-surface-500 px-3 py-1.5 text-sm text-gray-300 hover:bg-surface-700 transition-colors"
+              >
+                Disconnect
+              </button>
+            )}
+          </div>
+        )
       ) : claudeLoginInProgress && claudeAuthUrl ? (
         <div className="space-y-4">
           <p className="text-sm text-gray-300">

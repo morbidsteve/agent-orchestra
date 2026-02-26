@@ -104,6 +104,7 @@ export interface ClaudeAuthInfo {
   email?: string | null;
   authMethod?: string | null;
   error?: string;
+  hasCredentialsFile?: boolean;
 }
 
 export interface AuthStatus {
