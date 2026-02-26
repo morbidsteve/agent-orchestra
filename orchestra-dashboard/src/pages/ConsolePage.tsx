@@ -1,7 +1,7 @@
 import { ConversationPanel } from '../components/features/console/ConversationPanel.tsx';
 import { ContextPanel } from '../components/features/console/ContextPanel.tsx';
 import type { Conversation, ConversationMessage, WsConsoleMessage, DynamicAgent, FileTreeNode } from '../lib/types.ts';
-import type { ExecutionWsStatus } from '../hooks/useConsoleWebSocket.ts';
+import type { ExecutionWsStatus, PendingClarification } from '../hooks/useConsoleWebSocket.ts';
 
 interface ConsolePageProps {
   conversation: Conversation | null;
@@ -15,6 +15,7 @@ interface ConsolePageProps {
   fileTree: FileTreeNode[];
   activeFiles: string[];
   dynamicAgents: DynamicAgent[];
+  pendingQuestion: PendingClarification | null;
 }
 
 export function ConsolePage({
@@ -29,6 +30,7 @@ export function ConsolePage({
   fileTree,
   activeFiles,
   dynamicAgents,
+  pendingQuestion,
 }: ConsolePageProps) {
   return (
     <div className="flex h-full">
@@ -38,6 +40,7 @@ export function ConsolePage({
           onSend={onSend}
           isLoading={isLoading}
           onClarificationReply={onClarificationReply}
+          pendingQuestion={pendingQuestion}
         />
       </div>
       <div className="w-2/5 flex flex-col">

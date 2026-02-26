@@ -65,13 +65,19 @@ async def post_question(payload: QuestionPayload) -> dict[str, str]:
     store.pending_questions_by_execution[payload.execution_id].append(payload.id)
 
     # Broadcast to execution WebSocket so the dashboard shows the question
-    await store.broadcast(payload.execution_id, {
+    clarification_msg = {
         "type": "clarification",
         "questionId": payload.id,
         "question": payload.question,
         "options": payload.options,
         "required": True,
-    })
+    }
+    await store.broadcast(payload.execution_id, clarification_msg)
+
+    # Also broadcast to linked console WebSocket(s)
+    for conv in store.conversations.values():
+        if conv.get("activeExecutionId") == payload.execution_id:
+            await store.broadcast_console(conv["id"], clarification_msg)
 
     return {"id": payload.id}
 
