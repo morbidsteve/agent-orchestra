@@ -14,8 +14,22 @@ from starlette.responses import JSONResponse
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
-# Resolve repo root: prefer /workspace (devcontainer), fall back to /app (production Docker)
-APP_DIR = Path("/workspace") if Path("/workspace/.git").is_dir() else Path("/app")
+def _find_repo_root() -> Path:
+    """Resolve the git repo root dynamically.
+
+    Priority: /workspace (devcontainer) → /app (Docker) → relative to this file → cwd.
+    """
+    for fixed in (Path("/workspace"), Path("/app")):
+        if (fixed / ".git").is_dir():
+            return fixed
+    # Fall back: this file is backend/routes/system.py → ../../.. is the repo root
+    candidate = Path(__file__).resolve().parent.parent.parent
+    if (candidate / ".git").is_dir():
+        return candidate
+    return Path.cwd()
+
+
+APP_DIR = _find_repo_root()
 
 
 # ---------------------------------------------------------------------------
