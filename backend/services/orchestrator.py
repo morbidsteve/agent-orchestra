@@ -220,6 +220,22 @@ async def run_execution(execution_id: str) -> None:
     progresses.  Falls back to simulated execution when the real
     orchestrator is not available.
     """
+    from backend.services.sandbox import require_sandbox
+
+    try:
+        require_sandbox("run_execution")
+    except RuntimeError as exc:
+        execution = store.executions.get(execution_id)
+        if execution:
+            execution["status"] = "failed"
+            execution["completedAt"] = datetime.now(timezone.utc).isoformat()
+            await broadcast_both(execution_id, {
+                "type": "complete",
+                "status": "failed",
+                "message": str(exc),
+            })
+        return
+
     print(f"[ORCH] run_execution called for {execution_id}", flush=True)
     execution = store.executions.get(execution_id)
     if execution is None:

@@ -282,6 +282,20 @@ async def _handle_user_message(
     and launches the execution in background.
     Returns the orchestra response message.
     """
+    from backend.services.sandbox import get_sandbox_status
+
+    status = get_sandbox_status()
+    if not status.sandboxed and not status.override_active:
+        error_msg = _make_message(
+            "orchestra",
+            "Agent execution blocked: no container sandbox detected. "
+            "Agents run with --dangerously-skip-permissions and need container isolation. "
+            "Run inside a devcontainer or Docker, or set ORCHESTRA_ALLOW_HOST=true to override.",
+            "error",
+        )
+        conversation["messages"].append(error_msg)
+        return error_msg
+
     workflow = _detect_workflow(text)
     execution = _create_execution_record(workflow, text, model, project_source, conversation_id=conversation["id"])
     exec_id = execution["id"]

@@ -188,6 +188,44 @@ done
 
 check_deps
 
+# ── Container sandbox check ──────────────────────────────────────────────────
+_in_container=false
+if [ -n "${DEVCONTAINER:-}" ] || [ -n "${ORCHESTRA_CONTAINER:-}" ]; then
+    _in_container=true
+elif [ -f "/.dockerenv" ]; then
+    _in_container=true
+elif [ -f "/proc/1/cgroup" ] && grep -qE "docker|kubepods|containerd" /proc/1/cgroup 2>/dev/null; then
+    _in_container=true
+fi
+
+if [ "$_in_container" = false ] && [ "${ORCHESTRA_ALLOW_HOST:-}" != "true" ]; then
+    echo ""
+    echo -e "${RED}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}║  WARNING: No container sandbox detected                     ║${NC}"
+    echo -e "${RED}╠══════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${RED}║  Agent Orchestra spawns AI agents with unrestricted         ║${NC}"
+    echo -e "${RED}║  filesystem access (--dangerously-skip-permissions).        ║${NC}"
+    echo -e "${RED}║                                                             ║${NC}"
+    echo -e "${RED}║  Running on bare metal means agents can read, write, and    ║${NC}"
+    echo -e "${RED}║  delete ANY file on your system.                            ║${NC}"
+    echo -e "${RED}║                                                             ║${NC}"
+    echo -e "${RED}║  Recommended: use the devcontainer or Docker instead.       ║${NC}"
+    echo -e "${RED}║  To proceed anyway: export ORCHESTRA_ALLOW_HOST=true        ║${NC}"
+    echo -e "${RED}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    if [ -t 0 ]; then
+        read -r -p "$(echo -e "${YELLOW}Continue without container sandbox? [y/N]${NC} ")" answer
+        if [[ ! "$answer" =~ ^[Yy]$ ]]; then
+            echo -e "${RED}Aborted. Use a devcontainer or Docker for safe operation.${NC}"
+            exit 1
+        fi
+        echo -e "${YELLOW}[WARN] Proceeding without container sandbox at user's request.${NC}"
+    else
+        echo -e "${RED}Non-interactive bare-metal run blocked. Set ORCHESTRA_ALLOW_HOST=true to override.${NC}"
+        exit 1
+    fi
+fi
+
 case $ACTION in
     start)
         start_session "$TASK" "$DETACH"

@@ -8,37 +8,45 @@ A multi-agent development system where you describe what you want to build in pl
 
 ## Quick Start
 
-```bash
-git clone https://github.com/morbidsteve/agent-orchestra.git
-cd agent-orchestra
-make
-```
+### Devcontainer (recommended)
 
-That's it. `make` creates a Python venv, installs Node dependencies, and starts both servers. Open **http://localhost:5173** — a setup wizard walks you through connecting Claude Code and GitHub.
-
-Don't have Python/Node/Make? The setup script handles everything:
+The safest way to run Agent Orchestra. The container IS the sandbox — agents get unrestricted access inside it, but cannot touch your host filesystem.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/morbidsteve/agent-orchestra/master/setup.sh | bash
+devc .          # build and start the container
+devc shell      # open a shell inside it
+make            # install deps + start servers
 ```
 
-<details>
-<summary>Docker</summary>
+Open **http://localhost:5173** — a setup wizard walks you through connecting Claude Code and GitHub.
+
+### Docker
 
 ```bash
 docker build -t agent-orchestra .
 docker run --rm -p 5173:5173 -p 8000:8000 agent-orchestra
 ```
 
-</details>
-
 <details>
-<summary>Devcontainer (Trail of Bits)</summary>
+<summary><strong>Bare metal</strong> (not recommended)</summary>
+
+> **Security warning:** Agent Orchestra spawns Claude Code subprocesses with
+> `--dangerously-skip-permissions`, giving agents **unrestricted filesystem access**.
+> Without a container, agents can read, write, and delete **any file on your system**.
+> Only use this if you understand the risks.
 
 ```bash
-devc .          # build and start the container
-devc shell      # open a shell inside it
-make            # install deps + start servers
+export ORCHESTRA_ALLOW_HOST=true   # required — acknowledges the risk
+git clone https://github.com/morbidsteve/agent-orchestra.git
+cd agent-orchestra
+make
+```
+
+Or use the setup script (installs Python, Node, Make if missing):
+
+```bash
+export ORCHESTRA_ALLOW_HOST=true
+curl -fsSL https://raw.githubusercontent.com/morbidsteve/agent-orchestra/master/setup.sh | bash
 ```
 
 </details>
@@ -48,6 +56,19 @@ make            # install deps + start servers
 ![Agent Orchestra — Execution View](screenshot.png)
 
 ---
+
+## Security Model
+
+Agent Orchestra spawns Claude Code CLI subprocesses with `--dangerously-skip-permissions`. This is by design — agents need unrestricted tool access to read, write, and execute code. The container provides the security boundary.
+
+| Environment | Agent Execution | Risk Level | Notes |
+|-------------|----------------|------------|-------|
+| **Devcontainer** | Enabled | Low | Container isolates filesystem. Recommended. |
+| **Docker** | Enabled | Low | Same container isolation as devcontainer. |
+| **Bare metal** | **Blocked** | — | Agents cannot run without `ORCHESTRA_ALLOW_HOST=true`. |
+| **Bare metal + override** | Enabled | **High** | Agents have full host filesystem access. |
+
+The backend detects containers via `DEVCONTAINER` env, `/.dockerenv`, and cgroup inspection. The frontend shows a warning banner when no sandbox is detected.
 
 ## Features
 
@@ -136,6 +157,7 @@ All routes except `/setup` require both Claude and GitHub authentication.
 | `GET` | `/api/executions` | List all executions |
 | `GET` | `/api/executions/:id` | Get execution details |
 | `WS` | `/api/ws/:execution_id` | Real-time execution streaming |
+| `GET` | `/api/system/environment` | Sandbox/container status |
 | `GET` | `/api/screenshots` | List screenshots |
 | `POST` | `/api/screenshots` | Upload a screenshot |
 | `GET` | `/api/screenshots/:id` | Get screenshot metadata |

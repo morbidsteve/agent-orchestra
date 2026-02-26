@@ -191,6 +191,20 @@ export function triggerSystemUpdate(tag?: string): Promise<{ status: string; mes
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Environment / Sandbox
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface EnvironmentResponse {
+  sandboxed: boolean;
+  container_type: string | null;
+  override_active: boolean;
+}
+
+export function fetchEnvironment(): Promise<EnvironmentResponse> {
+  return apiFetch<EnvironmentResponse>('/api/system/environment');
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Screenshots
 // ──────────────────────────────────────────────────────────────────────────────
 

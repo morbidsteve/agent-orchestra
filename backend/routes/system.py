@@ -246,3 +246,16 @@ async def system_update(body: UpdateRequest | None = None) -> JSONResponse:
         {"status": "ok"},
         background=BackgroundTask(_schedule_restart),
     )
+
+
+@router.get("/environment")
+async def system_environment() -> JSONResponse:
+    """Return sandbox/container environment status."""
+    from backend.services.sandbox import get_sandbox_status
+
+    status = get_sandbox_status()
+    return JSONResponse({
+        "sandboxed": status.sandboxed,
+        "container_type": status.container_type,
+        "override_active": status.override_active,
+    })
