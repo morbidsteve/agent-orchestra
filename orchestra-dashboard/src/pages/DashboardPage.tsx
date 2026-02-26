@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { Activity, CheckCircle, XCircle, Layers } from 'lucide-react';
 import { useExecutions } from '../hooks/useExecutions.ts';
 import { useAgents } from '../hooks/useAgents.ts';
+import { useLiveDashboardAgents } from '../hooks/useLiveDashboardAgents.ts';
 import { StatsCard, ActiveExecutions, RecentResults, AgentStatusGrid } from '../components/features/dashboard/index.ts';
 
 interface DashboardPageProps {
@@ -10,6 +12,10 @@ interface DashboardPageProps {
 export function DashboardPage({ conversationId }: DashboardPageProps) {
   const { active, completed, stats } = useExecutions(conversationId);
   const { agents, busyCount } = useAgents();
+
+  const activeIds = useMemo(() => active.map((e) => e.id), [active]);
+  const { agentsByExecution, allAgents } = useLiveDashboardAgents(activeIds);
+  const dynamicBusyCount = allAgents.filter((a) => a.status === 'running').length;
 
   return (
     <div className="space-y-6">
@@ -32,7 +38,7 @@ export function DashboardPage({ conversationId }: DashboardPageProps) {
           icon={Activity}
           label="Running"
           value={stats.running}
-          subtitle={`${busyCount} agents busy`}
+          subtitle={`${dynamicBusyCount > 0 ? dynamicBusyCount : busyCount} agents busy`}
           iconColor="text-green-400"
           iconBg="bg-green-500/10"
         />
@@ -55,12 +61,12 @@ export function DashboardPage({ conversationId }: DashboardPageProps) {
 
       {/* Main Content */}
       <div className="grid grid-cols-2 gap-6">
-        <ActiveExecutions executions={active} />
+        <ActiveExecutions executions={active} agentsByExecution={agentsByExecution} />
         <RecentResults executions={completed} />
       </div>
 
       {/* Agent Status */}
-      <AgentStatusGrid agents={agents} />
+      <AgentStatusGrid agents={agents} dynamicAgents={allAgents} />
     </div>
   );
 }
