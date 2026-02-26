@@ -59,6 +59,16 @@ export function useWebSocket(executionId: string | null): UseWebSocketResult {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // Reset state when executionId changes (React-approved "adjust state during render" pattern)
+  const [prevId, setPrevId] = useState(executionId);
+  if (prevId !== executionId) {
+    setPrevId(executionId);
+    setLines([]);
+    setCurrentPhase(null);
+    setStatus(null);
+    setPendingQuestion(null);
+  }
+
   const sendAnswer = useCallback(function sendAnswer(questionId: string, answer: string) {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
