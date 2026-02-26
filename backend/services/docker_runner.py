@@ -188,15 +188,16 @@ def wrap_command_in_docker(
     # Volume mounts
     docker_cmd.extend(["-v", f"{cwd}:/workspace"])
 
-    # Mount Claude credentials directory
+    # Mount Claude credentials directory (read-write: Claude CLI writes session
+    # files, lock files, and state here at runtime — read-only causes silent exit 1)
     claude_dir = Path.home() / ".claude"
     if claude_dir.exists():
-        docker_cmd.extend(["-v", f"{claude_dir}:/home/orchestra/.claude:ro"])
+        docker_cmd.extend(["-v", f"{claude_dir}:/home/orchestra/.claude"])
 
     # Mount Claude CLI config file (~/.claude.json is separate from ~/.claude/)
     claude_json = Path.home() / ".claude.json"
     if claude_json.exists():
-        docker_cmd.extend(["-v", f"{claude_json}:/home/orchestra/.claude.json:ro"])
+        docker_cmd.extend(["-v", f"{claude_json}:/home/orchestra/.claude.json"])
 
     # Mount GitHub credentials (read-only)
     gh_dir = Path.home() / ".config" / "gh"
