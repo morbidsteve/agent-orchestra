@@ -317,6 +317,11 @@ export interface WsClarificationMessage {
   messageId: string;
 }
 
+export interface WsClarificationDismissedMessage {
+  type: 'clarification-dismissed';
+  questionId: string;
+}
+
 export interface WsAgentStatusMessage {
   type: 'agent-status';
   agentRole: string;
@@ -451,6 +456,7 @@ export interface WsExecutionSnapshotMessage {
 export type WsConsoleMessage =
   | WsConsoleTextMessage
   | WsClarificationMessage
+  | WsClarificationDismissedMessage
   | WsAgentStatusMessage
   | WsAgentConnectionMessage
   | WsScreenshotMessage

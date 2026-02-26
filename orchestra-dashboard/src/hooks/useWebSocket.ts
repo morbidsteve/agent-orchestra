@@ -40,6 +40,11 @@ export interface WsClarificationMessage {
   required: boolean;
 }
 
+export interface WsClarificationDismissedMessage {
+  type: 'clarification-dismissed';
+  questionId: string;
+}
+
 export interface WsAgentSpawnMessage {
   type: 'agent-spawn';
   agent?: { id?: string; name?: string; task?: string };
@@ -61,7 +66,7 @@ export interface WsAgentCompleteMessage {
   status?: string;
 }
 
-export type WsMessage = WsOutputMessage | WsPhaseMessage | WsFindingMessage | WsCompleteMessage | WsClarificationMessage | WsExecutionSnapshotMessage | WsAgentSpawnMessage | WsAgentOutputMessage | WsAgentCompleteMessage;
+export type WsMessage = WsOutputMessage | WsPhaseMessage | WsFindingMessage | WsCompleteMessage | WsClarificationMessage | WsClarificationDismissedMessage | WsExecutionSnapshotMessage | WsAgentSpawnMessage | WsAgentOutputMessage | WsAgentCompleteMessage;
 
 interface UseWebSocketResult {
   lines: string[];
@@ -140,6 +145,9 @@ export function useWebSocket(executionId: string | null): UseWebSocketResult {
             break;
           case 'clarification':
             setPendingQuestion(msg as WsClarificationMessage);
+            break;
+          case 'clarification-dismissed':
+            setPendingQuestion(null);
             break;
           case 'agent-spawn': {
             const spawn = msg as WsAgentSpawnMessage;

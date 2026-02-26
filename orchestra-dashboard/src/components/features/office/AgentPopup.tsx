@@ -56,22 +56,49 @@ export function AgentPopup({ agent, output, files, onClose, position }: AgentPop
     }
   }, [output]);
 
-  // Positioning: prefer right side, fall back to left. Prefer below, fall back to above.
-  const anchorRight = position.x <= 65;
-  const anchorBelow = position.y <= 65;
+  // Convert percentage position to pixel coords relative to viewport
+  // The popup's parent uses position: relative, but we use fixed to escape it
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+
+  const POPUP_WIDTH = 320;
+  const POPUP_MAX_HEIGHT = 420;
+  const MARGIN = 16;
+
+  // Approximate pixel position of the clicked element
+  const clickX = (position.x / 100) * viewportWidth;
+  const clickY = (position.y / 100) * viewportHeight;
+
+  // Decide which side to anchor on
+  const spaceRight = viewportWidth - clickX;
+  const spaceBelow = viewportHeight - clickY;
+
+  let left: number;
+  let top: number;
+
+  if (spaceRight >= POPUP_WIDTH + MARGIN) {
+    left = clickX + MARGIN;
+  } else {
+    left = clickX - POPUP_WIDTH - MARGIN;
+  }
+
+  if (spaceBelow >= POPUP_MAX_HEIGHT + MARGIN) {
+    top = clickY;
+  } else {
+    top = Math.max(MARGIN, viewportHeight - POPUP_MAX_HEIGHT - MARGIN);
+  }
+
+  // Clamp to viewport
+  left = Math.max(MARGIN, Math.min(left, viewportWidth - POPUP_WIDTH - MARGIN));
+  top = Math.max(MARGIN, Math.min(top, viewportHeight - POPUP_MAX_HEIGHT - MARGIN));
 
   const popupStyle: React.CSSProperties = {
-    position: 'absolute',
+    position: 'fixed',
     zIndex: 50,
-    ...(anchorRight
-      ? { left: `${position.x + 6}%` }
-      : { right: `${100 - position.x + 6}%` }),
-    ...(anchorBelow
-      ? { top: `${position.y - 4}%` }
-      : { bottom: `${100 - position.y + 4}%` }),
-    maxWidth: '320px',
-    minWidth: '260px',
-    maxHeight: '400px',
+    left: `${left}px`,
+    top: `${top}px`,
+    width: `${POPUP_WIDTH}px`,
+    maxHeight: `${POPUP_MAX_HEIGHT}px`,
     animation: 'popupFadeIn 0.15s ease-out',
   };
 
@@ -82,14 +109,14 @@ export function AgentPopup({ agent, output, files, onClose, position }: AgentPop
     <div
       ref={popupRef}
       style={popupStyle}
-      className="rounded-xl shadow-2xl overflow-hidden"
+      className="rounded-xl shadow-2xl"
     >
       <div
         style={{
           backgroundColor: '#252830',
           border: '1px solid #3a3d45',
           borderRadius: '12px',
-          maxHeight: '380px',
+          maxHeight: `${POPUP_MAX_HEIGHT - 2}px`,
           overflowY: 'auto',
           overflowX: 'hidden',
         }}
