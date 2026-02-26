@@ -81,6 +81,7 @@ async def _get_github_status() -> dict:
 async def _get_claude_status() -> dict:
     """Check Claude auth by reading the credentials file directly."""
     cred_path = _CLAUDE_CREDENTIALS_PATH
+    has_cred_file = False
     try:
         if os.path.isfile(cred_path):
             with open(cred_path) as f:
@@ -89,15 +90,21 @@ async def _get_claude_status() -> dict:
             if oauth.get("accessToken"):
                 expires_at = oauth.get("expiresAt", 0)
                 if expires_at > time.time() * 1000:
+                    has_cred_file = True
                     return {
                         "authenticated": True,
                         "email": oauth.get("email"),
                         "authMethod": "oauth",
+                        "hasCredentialsFile": True,
                     }
     except (OSError, json.JSONDecodeError, KeyError):
         pass
 
     # Fallback: try the CLI if available
+    # NOTE: On macOS, the CLI may report authenticated via Keychain
+    # without a credentials file on disk. We track this distinction
+    # with hasCredentialsFile so callers can decide whether Docker
+    # containers (which need the file) should trigger re-auth.
     if shutil.which("claude"):
         try:
             process = await asyncio.create_subprocess_exec(
@@ -116,14 +123,15 @@ async def _get_claude_status() -> dict:
                             "authenticated": True,
                             "email": cli_data.get("email"),
                             "authMethod": cli_data.get("authMethod"),
+                            "hasCredentialsFile": has_cred_file,
                         }
                 except json.JSONDecodeError:
                     pass
-                return {"authenticated": True}
+                return {"authenticated": True, "hasCredentialsFile": has_cred_file}
         except (asyncio.TimeoutError, OSError):
             pass
 
-    return {"authenticated": False}
+    return {"authenticated": False, "hasCredentialsFile": False}
 
 
 # ---------------------------------------------------------------------------
@@ -377,9 +385,12 @@ async def start_claude_login() -> dict:
             "status": "pending",
         }
 
-    # Check if already authenticated
+    # Check if already authenticated AND the credentials file exists on disk.
+    # On macOS, the CLI may report authenticated via Keychain but without a
+    # .credentials.json file. Docker containers need the file, so we must run
+    # the OAuth PKCE flow to create it even when the CLI says "logged in".
     status = await _get_claude_status()
-    if status.get("authenticated"):
+    if status.get("authenticated") and status.get("hasCredentialsFile"):
         _claude_login_session = {"status": "authenticated"}
         return {"authUrl": None, "status": "already_authenticated"}
 
