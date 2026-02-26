@@ -104,6 +104,53 @@ def _is_macos() -> bool:
     return platform.system() == "Darwin"
 
 
+def _inject_claude_auth(docker_cmd: list[str]) -> None:
+    """Inject Claude CLI auth credentials into the docker run command.
+
+    Checks (in order):
+    1. ANTHROPIC_API_KEY env var on the host — pass it through
+    2. OAuth token from ~/.claude/.credentials.json — write a credentials file
+       into the container at a known path so Claude CLI can find it
+    """
+    # 1. Explicit API key takes priority
+    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
+    if api_key:
+        docker_cmd.extend(["-e", f"ANTHROPIC_API_KEY={api_key}"])
+        return
+
+    # 2. Read OAuth token from Orchestra's credentials file
+    creds_path = Path.home() / ".claude" / ".credentials.json"
+    if not creds_path.exists():
+        logger.warning(
+            "No Claude credentials found at %s and no ANTHROPIC_API_KEY set. "
+            "Agents inside Docker will not be authenticated.",
+            creds_path,
+        )
+        return
+
+    try:
+        creds = json.loads(creds_path.read_text())
+        oauth = creds.get("claudeAiOauth", {})
+        access_token = oauth.get("accessToken")
+        if not access_token:
+            logger.warning("Claude credentials file exists but has no accessToken")
+            return
+
+        # Write a copy of the credentials file to a temp location with
+        # world-readable permissions so the container user can read it.
+        # Then mount it at the expected path inside the container.
+        fd, tmp_creds = tempfile.mkstemp(suffix=".json", prefix="docker-claude-creds-")
+        with os.fdopen(fd, "w") as f:
+            json.dump(creds, f)
+        os.chmod(tmp_creds, 0o644)
+        docker_cmd.extend([
+            "-v", f"{tmp_creds}:/home/orchestra/.claude/.credentials.json",
+        ])
+        logger.info("Injected Claude OAuth credentials into container")
+    except (OSError, json.JSONDecodeError, KeyError) as exc:
+        logger.warning("Failed to read Claude credentials: %s", exc)
+
+
 def _rewrite_mcp_config(
     mcp_config_path: str,
     api_url: str,
@@ -212,6 +259,14 @@ def wrap_command_in_docker(
     docker_cmd.extend(["-e", "ORCHESTRA_CONTAINER=1"])
     docker_cmd.extend(["-e", "CLAUDECODE="])
 
+    # Pass through Claude auth credentials.
+    # On bare metal, Orchestra's login flow stores OAuth tokens in
+    # ~/.claude/.credentials.json. The file is bind-mounted into the container,
+    # but the container user (orchestra) may not have read permission due to UID
+    # mismatch on macOS. As a reliable fallback, also pass ANTHROPIC_API_KEY if
+    # set, and inject the OAuth access token directly into the container env.
+    _inject_claude_auth(docker_cmd)
+
     # Working directory inside container
     docker_cmd.extend(["-w", "/workspace"])
 
@@ -236,11 +291,17 @@ def wrap_command_in_docker(
     return docker_cmd, docker_env, cwd
 
 
-def cleanup_rewritten_mcp_config(cmd: list[str]) -> None:
-    """Clean up any rewritten MCP config temp files referenced in a docker command."""
+def cleanup_docker_temp_files(cmd: list[str]) -> None:
+    """Clean up any temp files created for docker wrapping (MCP config, credentials)."""
+    # On macOS, tempfile uses /var/folders/... not /tmp/
+    prefixes = ("docker-mcp-", "docker-claude-creds-")
     for arg in cmd:
-        if arg.startswith("/tmp/docker-mcp-") and arg.endswith(".json"):
+        if any(p in arg for p in prefixes) and arg.endswith(".json"):
             try:
                 os.unlink(arg)
             except OSError:
                 pass
+
+
+# Backward-compatible alias
+cleanup_rewritten_mcp_config = cleanup_docker_temp_files
