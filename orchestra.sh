@@ -189,6 +189,9 @@ done
 check_deps
 
 # ── Container sandbox check ──────────────────────────────────────────────────
+# orchestra.sh launches Claude Code sessions that spawn agents with
+# --dangerously-skip-permissions, so this warning is more relevant here
+# than in setup.sh (which just installs deps + starts the web UI).
 _in_container=false
 if [ -n "${DEVCONTAINER:-}" ] || [ -n "${ORCHESTRA_CONTAINER:-}" ]; then
     _in_container=true
@@ -200,26 +203,22 @@ fi
 
 if [ "$_in_container" = false ] && [ "${ORCHESTRA_ALLOW_HOST:-}" != "true" ]; then
     echo ""
-    echo -e "${RED}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${RED}║  WARNING: No container sandbox detected                     ║${NC}"
-    echo -e "${RED}╠══════════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${RED}║  Agent Orchestra spawns AI agents with unrestricted         ║${NC}"
-    echo -e "${RED}║  filesystem access (--dangerously-skip-permissions).        ║${NC}"
-    echo -e "${RED}║                                                             ║${NC}"
-    echo -e "${RED}║  Running on bare metal means agents can read, write, and    ║${NC}"
-    echo -e "${RED}║  delete ANY file on your system.                            ║${NC}"
-    echo -e "${RED}║                                                             ║${NC}"
-    echo -e "${RED}║  Recommended: use the devcontainer or Docker instead.       ║${NC}"
-    echo -e "${RED}║  To proceed anyway: export ORCHESTRA_ALLOW_HOST=true        ║${NC}"
-    echo -e "${RED}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║  WARNING: No container sandbox detected                     ║${NC}"
+    echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${YELLOW}║  orchestra.sh launches Claude Code sessions that spawn      ║${NC}"
+    echo -e "${YELLOW}║  agents with unrestricted filesystem access.                ║${NC}"
+    echo -e "${YELLOW}║                                                             ║${NC}"
+    echo -e "${YELLOW}║  Recommended: use a devcontainer or Docker.                 ║${NC}"
+    echo -e "${YELLOW}║  To suppress:  export ORCHESTRA_ALLOW_HOST=true             ║${NC}"
+    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     if [ -t 0 ]; then
         read -r -p "$(echo -e "${YELLOW}Continue without container sandbox? [y/N]${NC} ")" answer
         if [[ ! "$answer" =~ ^[Yy]$ ]]; then
-            echo -e "${RED}Aborted. Use a devcontainer or Docker for safe operation.${NC}"
+            echo -e "${RED}Aborted.${NC}"
             exit 1
         fi
-        echo -e "${YELLOW}[WARN] Proceeding without container sandbox at user's request.${NC}"
     else
         echo -e "${RED}Non-interactive bare-metal run blocked. Set ORCHESTRA_ALLOW_HOST=true to override.${NC}"
         exit 1

@@ -33,7 +33,7 @@ describe('SandboxBanner', () => {
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
-  it('renders red blocked banner when not sandboxed', async () => {
+  it('renders blocked banner when not sandboxed', async () => {
     mockFetchEnvironment.mockResolvedValue({
       sandboxed: false,
       container_type: null,
@@ -42,13 +42,13 @@ describe('SandboxBanner', () => {
 
     renderWithProviders(<SandboxBanner />);
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('No container sandbox detected');
-    expect(alert).toHaveTextContent('Agent execution is blocked');
-    // Should NOT have a dismiss button
-    expect(screen.queryByLabelText('Dismiss warning')).toBeNull();
+    expect(alert).toHaveTextContent('No container detected');
+    expect(alert).toHaveTextContent('agent execution is disabled');
+    // Should have a dismiss button (dashboard still works)
+    expect(screen.getByLabelText('Dismiss warning')).toBeInTheDocument();
   });
 
-  it('renders amber override banner when override active', async () => {
+  it('renders override banner when override active', async () => {
     mockFetchEnvironment.mockResolvedValue({
       sandboxed: false,
       container_type: null,
@@ -58,7 +58,6 @@ describe('SandboxBanner', () => {
     renderWithProviders(<SandboxBanner />);
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('unrestricted host filesystem access');
-    // Should have a dismiss button
     expect(screen.getByLabelText('Dismiss warning')).toBeInTheDocument();
   });
 

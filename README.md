@@ -28,17 +28,20 @@ docker run --rm -p 5173:5173 -p 8000:8000 agent-orchestra
 ```
 
 <details>
-<summary><strong>Bare metal</strong> (not recommended)</summary>
+<summary><strong>Bare metal</strong></summary>
 
-> **Security warning:** Agent Orchestra spawns Claude Code subprocesses with
-> `--dangerously-skip-permissions`, giving agents **unrestricted filesystem access**.
-> Without a container, agents can read, write, and delete **any file on your system**.
-> Only use this if you understand the risks.
+The dashboard and API work normally on bare metal. Agent execution is disabled by default — agents use `--dangerously-skip-permissions` and need container isolation.
 
 ```bash
-export ORCHESTRA_ALLOW_HOST=true   # required — acknowledges the risk
 git clone https://github.com/morbidsteve/agent-orchestra.git
 cd agent-orchestra
+make
+```
+
+To enable agents on bare metal (agents get unrestricted host filesystem access):
+
+```bash
+export ORCHESTRA_ALLOW_HOST=true
 make
 ```
 
