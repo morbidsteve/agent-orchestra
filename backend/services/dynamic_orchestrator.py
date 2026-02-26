@@ -163,10 +163,10 @@ async def run_dynamic_execution(execution_id: str) -> None:
         print(f"[DYNAMIC] execution {execution_id} NOT FOUND in store!", flush=True)
         return
 
-    from backend.services.sandbox import require_sandbox
+    from backend.services.sandbox import require_execution_capability
 
     try:
-        require_sandbox("run_dynamic_execution")
+        exec_mode = require_execution_capability("run_dynamic_execution")
     except RuntimeError as exc:
         execution["status"] = "failed"
         execution["completedAt"] = datetime.now(timezone.utc).isoformat()
@@ -234,6 +234,17 @@ async def run_dynamic_execution(execution_id: str) -> None:
 
         # Unset CLAUDECODE to avoid nested session detection
         env = {**os.environ, "CLAUDECODE": ""}
+
+        # Docker-wrap if running on bare metal with Docker available
+        if exec_mode == "docker-wrap":
+            from backend.services.docker_runner import ensure_image, wrap_command_in_docker
+            if not await ensure_image(execution_id):
+                execution["status"] = "failed"
+                execution["completedAt"] = datetime.now(timezone.utc).isoformat()
+                await _broadcast_output(execution_id, "[Docker] Failed to build agent image", "orchestrator")
+                await store.broadcast(execution_id, {"type": "complete", "status": "failed"})
+                return
+            cmd, env, work_dir = wrap_command_in_docker(cmd, env, work_dir, mcp_config_path)
 
         print(f"[DYNAMIC] Launching Claude CLI: model={execution.get('model')}, cwd={work_dir}", flush=True)
         print(f"[DYNAMIC] Command: {' '.join(cmd[:8])}...", flush=True)
@@ -361,6 +372,10 @@ async def run_dynamic_execution(execution_id: str) -> None:
     finally:
         if mcp_config_path and os.path.exists(mcp_config_path):
             os.unlink(mcp_config_path)
+        # Clean up rewritten Docker MCP config if docker-wrap was used
+        if exec_mode == "docker-wrap":
+            from backend.services.docker_runner import cleanup_rewritten_mcp_config
+            cleanup_rewritten_mcp_config(cmd)
 
 
 async def launch_agent_subprocess(execution_id: str, agent_id: str) -> None:
@@ -373,10 +388,10 @@ async def launch_agent_subprocess(execution_id: str, agent_id: str) -> None:
     if not agent:
         return
 
-    from backend.services.sandbox import require_sandbox
+    from backend.services.sandbox import require_execution_capability
 
     try:
-        require_sandbox("launch_agent_subprocess")
+        exec_mode = require_execution_capability("launch_agent_subprocess")
     except RuntimeError as exc:
         agent["status"] = "failed"
         agent["output"].append(f"[Sandbox] {exc}")
@@ -498,6 +513,21 @@ async def launch_agent_subprocess(execution_id: str, agent_id: str) -> None:
         # Unset CLAUDECODE to avoid nested session detection
         env = {**os.environ, "CLAUDECODE": ""}
 
+        # Docker-wrap if needed
+        if exec_mode == "docker-wrap":
+            from backend.services.docker_runner import ensure_image, wrap_command_in_docker
+            if not await ensure_image(execution_id):
+                agent["status"] = "failed"
+                agent["output"].append("[Docker] Failed to build agent image")
+                agent["completedAt"] = datetime.now(timezone.utc).isoformat()
+                if "result_event" in agent:
+                    agent["result_event"].set()
+                await _broadcast_agent_event(execution_id, agent_id, "agent-complete", {
+                    "agentId": agent_id, "status": "failed", "filesModified": [],
+                })
+                return
+            cmd, env, work_dir = wrap_command_in_docker(cmd, env, work_dir, agent_mcp_config_path)
+
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -582,6 +612,10 @@ async def launch_agent_subprocess(execution_id: str, agent_id: str) -> None:
     finally:
         if agent_mcp_config_path and os.path.exists(agent_mcp_config_path):
             os.unlink(agent_mcp_config_path)
+        # Clean up rewritten Docker MCP config if docker-wrap was used
+        if exec_mode == "docker-wrap":
+            from backend.services.docker_runner import cleanup_rewritten_mcp_config
+            cleanup_rewritten_mcp_config(cmd)
 
         # Signal completion
         if "result_event" in agent:

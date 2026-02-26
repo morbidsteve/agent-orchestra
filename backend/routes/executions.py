@@ -111,13 +111,13 @@ async def create_execution(req: CreateExecutionRequest) -> dict:
     from backend.services.sandbox import get_sandbox_status
 
     status = get_sandbox_status()
-    if not status.sandboxed and not status.override_active:
+    if status.execution_mode == "blocked":
         raise HTTPException(
             status_code=403,
             detail=(
-                "Agent execution blocked: no container sandbox detected. "
-                "Agents run with --dangerously-skip-permissions and need container isolation. "
-                "Run inside a devcontainer or Docker, or set ORCHESTRA_ALLOW_HOST=true to override."
+                "Agent execution blocked: no container sandbox and Docker not available. "
+                "Install Docker to enable automatic containerization, "
+                "or set ORCHESTRA_ALLOW_HOST=true to override."
             ),
         )
 

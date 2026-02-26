@@ -272,4 +272,6 @@ async def system_environment() -> JSONResponse:
         "sandboxed": status.sandboxed,
         "container_type": status.container_type,
         "override_active": status.override_active,
+        "docker_available": status.docker_available,
+        "execution_mode": status.execution_mode,
     })

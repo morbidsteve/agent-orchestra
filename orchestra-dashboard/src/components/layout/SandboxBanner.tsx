@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ShieldAlert, ShieldOff, X } from 'lucide-react';
+import { Container, ShieldAlert, ShieldOff, X } from 'lucide-react';
 import { fetchEnvironment } from '../../lib/api.ts';
 import type { EnvironmentResponse } from '../../lib/api.ts';
 
-type BannerState = 'loading' | 'sandboxed' | 'blocked' | 'override' | 'error';
+type ExecutionMode = 'native' | 'docker-wrap' | 'host-override' | 'blocked';
+type BannerState = 'loading' | ExecutionMode | 'error';
 
 export function SandboxBanner() {
   const [state, setState] = useState<BannerState>('loading');
@@ -12,10 +13,12 @@ export function SandboxBanner() {
   useEffect(() => {
     fetchEnvironment()
       .then((env: EnvironmentResponse) => {
-        if (env.sandboxed) {
-          setState('sandboxed');
+        if (env.execution_mode) {
+          setState(env.execution_mode);
+        } else if (env.sandboxed) {
+          setState('native');
         } else if (env.override_active) {
-          setState('override');
+          setState('host-override');
         } else {
           setState('blocked');
         }
@@ -25,13 +28,35 @@ export function SandboxBanner() {
       });
   }, []);
 
-  // Render nothing for safe/loading/error states
-  if (state === 'loading' || state === 'sandboxed' || state === 'error' || dismissed) {
+  // Render nothing for safe/loading/error/native states, or if dismissed
+  if (state === 'loading' || state === 'native' || state === 'error' || dismissed) {
     return null;
   }
 
-  // Override banner (amber) — agents enabled without container
-  if (state === 'override') {
+  // Docker-wrap banner (blue info, dismissible) — agents auto-containerized
+  if (state === 'docker-wrap') {
+    return (
+      <div
+        role="status"
+        className="flex items-center gap-3 bg-blue-900/80 border-b border-blue-700 px-4 py-2 text-blue-200 text-sm"
+      >
+        <Container className="h-4 w-4 shrink-0" />
+        <span className="flex-1">
+          Running on bare metal — agents will be automatically containerized via Docker.
+        </span>
+        <button
+          onClick={() => setDismissed(true)}
+          className="shrink-0 p-1 rounded hover:bg-blue-800 transition-colors"
+          aria-label="Dismiss info"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
+
+  // Host-override banner (amber warning) — agents enabled without container
+  if (state === 'host-override') {
     return (
       <div
         role="alert"
@@ -52,7 +77,7 @@ export function SandboxBanner() {
     );
   }
 
-  // Blocked banner (amber, dismissible) — dashboard works, agents don't
+  // Blocked banner (amber) — dashboard works, agents don't
   return (
     <div
       role="alert"
@@ -60,8 +85,8 @@ export function SandboxBanner() {
     >
       <ShieldAlert className="h-4 w-4 shrink-0" />
       <span className="flex-1">
-        No container detected — the dashboard works normally but agent execution is disabled.
-        Use a devcontainer or Docker to enable agents, or set ORCHESTRA_ALLOW_HOST=true to override.
+        No container sandbox and Docker is not available — agent execution is disabled.
+        Install Docker or use a devcontainer to enable agents.
       </span>
       <button
         onClick={() => setDismissed(true)}

@@ -220,10 +220,10 @@ async def run_execution(execution_id: str) -> None:
     progresses.  Falls back to simulated execution when the real
     orchestrator is not available.
     """
-    from backend.services.sandbox import require_sandbox
+    from backend.services.sandbox import require_execution_capability
 
     try:
-        require_sandbox("run_execution")
+        exec_mode = require_execution_capability("run_execution")
     except RuntimeError as exc:
         execution = store.executions.get(execution_id)
         if execution:
@@ -241,6 +241,9 @@ async def run_execution(execution_id: str) -> None:
     if execution is None:
         print(f"[ORCH] execution {execution_id} NOT FOUND in store!", flush=True)
         return
+
+    # Store exec_mode for use by _try_real_orchestrator
+    execution["_exec_mode"] = exec_mode
 
     now = datetime.now(timezone.utc).isoformat()
     execution["status"] = "running"
@@ -559,6 +562,16 @@ async def _try_real_orchestrator(
     # Unset CLAUDECODE to avoid nested session detection
     env = {**os.environ, "CLAUDECODE": ""}
 
+    # Docker-wrap if needed
+    exec_mode = execution.get("_exec_mode", "native")
+    if exec_mode == "docker-wrap":
+        from backend.services.docker_runner import ensure_image, wrap_command_in_docker
+        if not await ensure_image(execution_id):
+            step["output"].append("[Docker] Failed to build agent image")
+            activity["output"].append("[Docker] Failed to build agent image")
+            return False
+        cmd, env, cwd = wrap_command_in_docker(cmd, env, cwd, mcp_config_path)
+
     print(f"[ORCH] Running Claude CLI: {claude_path} (cwd={cwd}, model={model})",
           flush=True)
     print(f"[ORCH] Command: {' '.join(cmd[:6])}...", flush=True)
@@ -702,6 +715,12 @@ async def _try_real_orchestrator(
         os.unlink(mcp_config_path)
     except OSError:
         pass
+
+    # Clean up rewritten Docker MCP config if docker-wrap was used
+    exec_mode = execution.get("_exec_mode", "native")
+    if exec_mode == "docker-wrap":
+        from backend.services.docker_runner import cleanup_rewritten_mcp_config
+        cleanup_rewritten_mcp_config(cmd)
 
     # If the process failed with a non-zero exit code, still return True
     # (we tried, it ran, it just had errors — don't fall back to simulation)
