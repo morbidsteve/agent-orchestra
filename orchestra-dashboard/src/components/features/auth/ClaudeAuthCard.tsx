@@ -93,6 +93,27 @@ export function ClaudeAuthCard({
           <Loader2 className="h-4 w-4 animate-spin" />
           Checking status...
         </div>
+      ) : claudeLoginInProgress && claudeAuthUrl ? (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-300">
+            1. Open the link below and authorize Claude Code.
+          </p>
+          <a
+            href={claudeAuthUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg bg-accent-blue px-4 py-2 text-sm font-medium text-white hover:bg-accent-blue/80 transition-colors"
+          >
+            Open Authorization Page
+            <ExternalLink className="h-4 w-4" />
+          </a>
+          <p className="text-sm text-gray-300">
+            2. After authorizing, you&apos;ll see a code — paste it below.
+          </p>
+          {onSubmitCode && (
+            <CodeInput onSubmit={onSubmitCode} error={error || claudeLoginSession?.error} />
+          )}
+        </div>
       ) : claudeConnected ? (
         authStatus?.claude?.hasCredentialsFile === false ? (
           <div className="space-y-3">
@@ -132,27 +153,6 @@ export function ClaudeAuthCard({
             )}
           </div>
         )
-      ) : claudeLoginInProgress && claudeAuthUrl ? (
-        <div className="space-y-4">
-          <p className="text-sm text-gray-300">
-            1. Open the link below and authorize Claude Code.
-          </p>
-          <a
-            href={claudeAuthUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg bg-accent-blue px-4 py-2 text-sm font-medium text-white hover:bg-accent-blue/80 transition-colors"
-          >
-            Open Authorization Page
-            <ExternalLink className="h-4 w-4" />
-          </a>
-          <p className="text-sm text-gray-300">
-            2. After authorizing, you&apos;ll see a code — paste it below.
-          </p>
-          {onSubmitCode && (
-            <CodeInput onSubmit={onSubmitCode} error={error || claudeLoginSession?.error} />
-          )}
-        </div>
       ) : (
         <div className="space-y-3">
           <button
