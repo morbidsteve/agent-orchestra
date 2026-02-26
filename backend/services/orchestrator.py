@@ -727,8 +727,10 @@ async def _try_real_orchestrator(
     if process.returncode != 0:
         stderr_bytes = await process.stderr.read() if process.stderr else b""
         stderr_text = stderr_bytes.decode("utf-8", errors="replace").strip()
+        print(f"[ORCH] Phase {phase} stderr: {stderr_text[:1000] if stderr_text else '(empty)'}",
+              flush=True)
         if stderr_text:
-            err_line = f"Error: {stderr_text[:200]}"
+            err_line = f"Error: {stderr_text[:500]}"
             step["output"].append(err_line)
             activity["output"].append(err_line)
             await broadcast_both(execution_id, {
