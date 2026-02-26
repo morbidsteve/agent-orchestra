@@ -390,6 +390,10 @@ async def run_dynamic_execution(execution_id: str) -> None:
         if return_code != 0:
             print(f"[DYNAMIC] Non-zero exit — last 5 output lines: "
                   f"{output_lines[-5:] if output_lines else '(none)'}", flush=True)
+            error_detail = f"[Orchestrator] Process exited with code {return_code}"
+            if stderr_output:
+                error_detail += f": {stderr_output[:200]}"
+            await _broadcast_output(execution_id, error_detail, "orchestrator")
 
         # Collect all dynamic agent file modifications
         all_files: list[str] = []
@@ -430,10 +434,14 @@ async def run_dynamic_execution(execution_id: str) -> None:
         execution["startedAt"] = None
         raise
     except Exception as exc:
+        import traceback
+        tb = traceback.format_exc()
         print(f"[DYNAMIC] Orchestrator exception: {exc}", flush=True)
+        print(f"[DYNAMIC] Traceback:\n{tb}", flush=True)
         execution["status"] = "failed"
         execution["completedAt"] = datetime.now(timezone.utc).isoformat()
-        await _broadcast_output(execution_id, "[Orchestrator error]", "orchestrator")
+        error_text = f"[Orchestrator error] {type(exc).__name__}: {exc}"
+        await _broadcast_output(execution_id, error_text, "orchestrator")
         error_complete_msg = {"type": "complete", "status": "failed"}
         await store.broadcast(execution_id, error_complete_msg)
         # Also broadcast failure to console WebSocket
@@ -677,9 +685,12 @@ async def launch_agent_subprocess(execution_id: str, agent_id: str) -> None:
         agent["output"].append(f"[Simulated] {agent['name']} completed task: {agent['task'][:80]}")
         agent["status"] = "completed"
         agent["completedAt"] = datetime.now(timezone.utc).isoformat()
-    except Exception:
+    except Exception as exc:
+        import traceback
+        print(f"[DYNAMIC] Agent {agent_id} exception: {exc}", flush=True)
+        print(f"[DYNAMIC] Agent traceback:\n{traceback.format_exc()}", flush=True)
         agent["status"] = "failed"
-        agent["output"].append("[Agent error]")
+        agent["output"].append(f"[Agent error] {type(exc).__name__}: {exc}")
         agent["completedAt"] = datetime.now(timezone.utc).isoformat()
     finally:
         if agent_mcp_config_path and os.path.exists(agent_mcp_config_path):
