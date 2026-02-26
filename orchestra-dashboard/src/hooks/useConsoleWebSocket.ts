@@ -114,6 +114,9 @@ export function useConsoleWebSocket(conversationId: string | null): UseConsoleWe
         });
         setMessages(prev => [...prev, msg]);
         break;
+      case 'clarification-dismissed':
+        setPendingQuestion(null);
+        break;
       case 'agent-spawn':
       case 'agent-output':
       case 'agent-complete':

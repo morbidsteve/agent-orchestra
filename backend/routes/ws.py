@@ -87,6 +87,13 @@ async def execution_ws(websocket: WebSocket, execution_id: str) -> None:
                         entry["answer"] = answer
                         entry["event"].set()
                         cleanup_question(qid)
+                        # Broadcast dismissal so all clients clear the question
+                        dismiss_msg = {"type": "clarification-dismissed", "questionId": qid}
+                        await store.broadcast(execution_id, dismiss_msg)
+                        # Also broadcast to console WS
+                        for conv in store.conversations.values():
+                            if conv.get("activeExecutionId") == execution_id:
+                                await store.broadcast_console(conv["id"], dismiss_msg)
             except json.JSONDecodeError:
                 pass
     except WebSocketDisconnect:

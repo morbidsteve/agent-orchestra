@@ -223,6 +223,16 @@ def init_agents() -> None:
 
 async def broadcast(execution_id: str, message: dict) -> None:
     """Send a JSON message to every WebSocket subscribed to *execution_id*."""
+    # If this is a dismissal, remove the original clarification from the buffer
+    # so reconnecting clients don't see already-answered questions.
+    if message.get("type") == "clarification-dismissed":
+        qid = message.get("questionId")
+        buf = execution_messages.get(execution_id, [])
+        execution_messages[execution_id] = [
+            m for m in buf
+            if not (m.get("type") == "clarification" and m.get("questionId") == qid)
+        ]
+
     # Buffer the message so late-connecting clients can replay history
     if execution_id not in execution_messages:
         execution_messages[execution_id] = []
@@ -248,6 +258,16 @@ async def broadcast(execution_id: str, message: dict) -> None:
 
 async def broadcast_console(conversation_id: str, message: dict) -> None:
     """Send a JSON message to every WebSocket subscribed to a conversation."""
+    # If this is a dismissal, remove the original clarification from the buffer
+    # so reconnecting clients don't see already-answered questions.
+    if message.get("type") == "clarification-dismissed":
+        qid = message.get("questionId")
+        buf = console_messages.get(conversation_id, [])
+        console_messages[conversation_id] = [
+            m for m in buf
+            if not (m.get("type") == "clarification" and m.get("questionId") == qid)
+        ]
+
     # Buffer the message so late-connecting clients can replay history
     if conversation_id not in console_messages:
         console_messages[conversation_id] = []

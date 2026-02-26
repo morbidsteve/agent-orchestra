@@ -513,6 +513,14 @@ async def console_ws(websocket: WebSocket, conversation_id: str) -> None:
                         entry["event"].set()
                         from backend.routes.internal import cleanup_question
                         cleanup_question(question_id)
+                        # Broadcast dismissal to execution and console WS
+                        exec_id = entry.get("execution_id")
+                        if exec_id:
+                            dismiss_msg = {"type": "clarification-dismissed", "questionId": question_id}
+                            await store.broadcast(exec_id, dismiss_msg)
+                            for conv in store.conversations.values():
+                                if conv.get("activeExecutionId") == exec_id:
+                                    await store.broadcast_console(conv["id"], dismiss_msg)
                     # Also record as a conversation message
                     conversation = store.conversations.get(conversation_id)
                     if conversation and answer:
